@@ -53,7 +53,7 @@ export async function GET(req) {
     client.from('csv_uploads').select('user_id, platform, status, total_rows, inserted_rows, total_usd, uploaded_at').order('uploaded_at', { ascending: false }),
     client.from('tips').select('user_id, usd, created_at'),
     client.from('live_tips').select('user_id, received_at, usd').order('received_at', { ascending: false }),
-    client.from('subscriptions').select('user_id, status, plan_type, current_period_end'),
+    client.from('subscriptions').select('user_id, status, plan_type, current_period_end, stripe_subscription_id'),
     client.from('feedback').select('message, page_url, created_at, user_id').order('created_at', { ascending: false }).limit(15),
     client.from('paid_sessions').select('user_id'),
   ])
@@ -173,9 +173,13 @@ export async function GET(req) {
   }
 
   // Subscription breakdown
-  const subBreakdown = { active: 0, trialing: 0, cancelled: 0, free: 0 }
+  // 'active' counts PAYING subscribers only: a row must carry a real Stripe
+  // subscription id. Manual/goodwill rows marked active without one are
+  // counted as 'grants' (they were showing as paying users).
+  const subBreakdown = { active: 0, grants: 0, trialing: 0, cancelled: 0, free: 0 }
   for (const s of subs) {
-    if (s.status === 'active')                              subBreakdown.active++
+    if (s.status === 'active' && s.stripe_subscription_id) subBreakdown.active++
+    else if (s.status === 'active')                   subBreakdown.grants++
     else if (s.status === 'trialing')                       subBreakdown.trialing++
     else if (s.status === 'canceled' || s.status === 'cancelled') subBreakdown.cancelled++
     else                                                    subBreakdown.free++

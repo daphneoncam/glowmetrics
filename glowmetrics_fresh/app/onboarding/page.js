@@ -9,7 +9,8 @@ import { readUploadJson } from '../../lib/readUploadJson'
 import { PLATFORM_TOKEN_RATES, tokenRate } from '../../lib/constants'
 import { computeSnapshotStats, parseCSV } from '../../lib/analytics'
 import { summarizeOnboarding, assertImportComplete, earningDateRange, formatDay, canonicalImportDataset, streamPatterns, bestStreamingTimes } from '../../lib/onboardingSummary'
-import { FREE_ANALYSIS_WINDOW_DAYS, FREE_PLATFORM_LIMIT, isProPlan } from '../../lib/planLimits'
+import { FREE_ANALYSIS_WINDOW_DAYS, FREE_PLATFORM_LIMIT } from '../../lib/planLimits'
+import { fetchEntitlement } from '../../lib/entitlement'
 import { track } from '../../lib/track'
 import { trackCheckoutEvent } from '../../lib/analytics-client'
 import { logParseAttempt, analyzeFormat } from '../../lib/parseTracking'
@@ -1063,8 +1064,12 @@ export default function OnboardingPage(){
       const{data}=await supabase.from('beta_users').select('onboarding_complete').eq('user_id',user.id).single()
       if(data?.onboarding_complete){router.replace('/dashboard');return}
       const{data:profile}=await supabase.from('profiles').select('plan,streaming_platforms,primary_pro_platform,timezone,chaturbate_username,trial_ends_at,subscription_status,plan_expires_at').eq('id',user.id).single()
-      setBilling({isPro:isProPlan(profile?.plan),trialEndsAt:profile?.trial_ends_at||null,subscriptionStatus:profile?.subscription_status||null})
-      setUserPlan(profile?.plan==='pro'?'pro':'free')
+      // Access comes from the one server rule (lib/entitlement.js). billing.isPro
+      // means PAID Pro only, so a running trial still shows its own trial screen
+      // below; feature access (userPlan) includes the trial.
+      const entitlement=await fetchEntitlement(supabase,profile)
+      setBilling({isPro:entitlement.tier==='pro',trialEndsAt:profile?.trial_ends_at||null,subscriptionStatus:profile?.subscription_status||null})
+      setUserPlan(entitlement.isPro?'pro':'free')
       // Restore an in-progress platform selection if the user left and came
       // back — matches beta_users.onboarding_complete already gating re-entry.
       // The database stores canonical names ('BongaCams'); onboarding ids are lowercase.

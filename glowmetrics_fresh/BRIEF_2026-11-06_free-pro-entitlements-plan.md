@@ -103,17 +103,27 @@ In parallel (analysis only, no code change without approval): a conversion revie
 
 ---
 
+## PR 1 progress (2026-11-10)
+Code is on branch `claude/jolly-faraday-2c2h2m` (PR #780 now carries the plan plus PR 1; the owner chose no separate branch).
+- `supabase/migrations/20261110_central_entitlement_tier.sql`: `entitlement_tier`, `get_my_entitlement`; `is_live_mode_pro`, `check_free_tier_platform_limit` and `get_user_insights` now use it. A drift guard aborts if production's functions differ from the reviewed versions.
+- `lib/entitlement.js` and `lib/planLimits.js` `tierHasPro`. The dashboard and onboarding read the server tier and fall back to today's plan check on any error.
+- Admin stats: "active" now counts only rows with a real Stripe subscription. Grants are counted separately (F13).
+- Verified: 18 account states, grants and access checks pass on a throwaway local Postgres 16. The two copied functions match production's fingerprints exactly, and the guard refused a mismatch without changing anything. jest: 84 suites, 1,208 tests passed. `next build` passed. The timezone check passed.
+- **Not applied anywhere yet.** The Live Mode Testing project (`qqvflqcxglkmeuahubwv`) rejects database logins ("password authentication failed"), so the staging run is blocked. The production apply needs separate owner approval.
+- D6 finding: both legacy Pro accounts look internal (one is on the camcashgrl.com domain, the other matches an internal-name pattern). They have no subscription history and remain Pro.
+
 ## Tasks, most important first
 ### New / to do
-1. (Critical) PR 1: trial = full Pro, plus the central entitlement rule (F1, F3). **Awaiting approval to start.**
-2. (Critical) PR 3: server-side history restriction with the metadata RPC (F2, C1).
-3. (High) Investigate the 2 grant accounts (F4/D6) and fix the admin-stats paid count (F13).
-4. (High) PR 2: checkout eligibility, past_due grace, $19.99 copy (F6, F7).
-5. (High) Timezone transition for 248 accounts (F9, C3).
-6. (High) Conversion-funnel review (F14).
-7. (Medium) Make the repo match production for 20261103 / gate_live_mode_pro_only (F5).
-8. (Medium) PR 4 Live and transition, PR 5 teasers, PR 6 pricing release.
+1. (Critical) Restore database access to the Live Mode Testing project (owner: reset the DB password / reconnect the Supabase connector), then run `supabase/tests/entitlement_tier_20261110.sql` there.
+2. (Critical) Owner approval to apply the PR 1 migration to production (after item 1).
+3. (Critical) PR 3: server-side history restriction with the metadata RPC (F2, C1).
+4. (High) Confirm the 2 legacy Pro accounts are internal (D6).
+5. (High) PR 2: checkout trial eligibility, past_due grace, redirect base URL (F7, D4).
+6. (High) Timezone transition for 248 accounts (F9, C3).
+7. (High) Conversion-funnel review (F14).
+8. (Medium) Make the repo match production for 20261103 / gate_live_mode_pro_only (F5).
+9. (Medium) PR 4 Live and transition, PR 5 teasers, PR 6 pricing release.
 ### In progress
-- Plan rev. 2 awaiting owner approval.
+- PR 1: code complete and tested locally, waiting on staging access and production approval.
 ### Completed
-- Read-only audit (rev. 1); owner decisions D1–D7 recorded; paid-subscriber count and funnel verified (rev. 2).
+- Audit (rev. 1); owner decisions D1-D7 recorded; plan rev. 2 approved; PR 1 implemented and tested locally.

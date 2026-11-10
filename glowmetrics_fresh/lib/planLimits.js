@@ -18,6 +18,17 @@ export function isProPlan(plan) {
   return plan === 'pro' || plan === 'unlimited'
 }
 
+// ── Entitlement tier (server-decided) ────────────────────────────────────────
+// The rule itself lives ONLY in the database: public.entitlement_tier()
+// (supabase/migrations/20261110_central_entitlement_tier.sql), read by the app
+// through get_my_entitlement() — see lib/entitlement.js. This only maps the
+// tier the server returned to "has Pro features". A running Stripe trial
+// ('trial') grants exactly what Pro grants. Display only, never authorization.
+export const ENTITLEMENT_TIERS = ['free', 'trial', 'pro']
+export function tierHasPro(tier) {
+  return tier === 'pro' || tier === 'trial'
+}
+
 // ── Platform role resolution ─────────────────────────────────────────────────
 // THE single source of truth for primary-platform identity (Free history
 // gating, Platform Intelligence, everything). Canonical field:

@@ -22,7 +22,8 @@ import { getDashboardReadiness, getModuleLockState, canShowHourlyRate, LockedIns
 import PlatformsIntelligence from './PlatformsIntelligence'
 import CommandCenter from './CommandCenter'
 import SubscriptionManager from './SubscriptionManager'
-import { platformLimitMessage, FREE_PLATFORM_LIMIT, resolvePlatformRoles as resolvePlanPlatformRoles } from '../../lib/planLimits'
+import { platformLimitMessage, FREE_PLATFORM_LIMIT, isProPlan, resolvePlatformRoles as resolvePlanPlatformRoles } from '../../lib/planLimits'
+import { fetchEntitlement } from '../../lib/entitlement'
 import Button from '../../components/ui/Button'
 import { useLiveSessionEngine } from '../live/useLiveSessionEngine'
 import PrivateShowControl from '../live/PrivateShowControl'
@@ -1644,7 +1645,10 @@ export default function Dashboard() {
   const sessionPhaseCacheRef = useRef({ value: null, deps: null })
 
   const isBetaUser = true
-  const isPro = profile?.plan === 'pro' || profile?.plan === 'unlimited'
+  // Display only: the server decides access (public.entitlement_tier via
+  // lib/entitlement.js; a running trial counts as Pro). Until the entitlement
+  // has loaded, the plan column gives today's behaviour.
+  const isPro = profile?.entitlement ? profile.entitlement.isPro : isProPlan(profile?.plan)
   // Free tier: the primary platform (lib/planLimits.js resolver — onboarding
   // selection only, never inferred from revenue) keeps full history; others
   // keep 31 days. No primary on file → every platform is windowed.
@@ -1969,7 +1973,12 @@ export default function Dashboard() {
         .select('plan, primary_pro_platform, streaming_platforms, timezone')
         .eq('id', user.id)
         .maybeSingle()
-        .then(({ data }) => { if (data) setProfile(data) })
+        .then(async ({ data }) => {
+          if (!data) return
+          setProfile(data)
+          const entitlement = await fetchEntitlement(supabase, data)
+          setProfile(prev => ({ ...(prev || {}), entitlement }))
+        })
       loadData(user.id)
       // Load monthly goal from DB
       supabase.from('user_goals').select('*').eq('user_id', user.id).eq('goal_type', 'monthly').maybeSingle()
