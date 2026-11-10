@@ -81,8 +81,16 @@ const C = {
 }
 
 const TIER_COLORS = {
-  "Whale": C.gold, "Shark": C.blue, "Regular": C.cyan, "Dormant": C.orange
+  "Whale": C.gold, "Shark": C.blue, "Regular": C.cyan, "Occasional": C.indigo,
+  "New/Developing": C.green, "Dormant": C.orange
 }
+
+// Fans-tab filter pills. MUST list every tier identifyWhales() in
+// lib/analytics.js can assign — a tier missing here is only reachable via
+// "All" and its fans silently vanish from every other pill. Display-only:
+// the tier formula itself lives in identifyWhales() and is not changed here.
+const FAN_TIER_FILTERS = ["ALL", "Whale", "Shark", "Regular", "Occasional", "New/Developing", "Dormant"]
+const FAN_TIER_FILTER_LABELS = { "ALL": "All", "New/Developing": "New" }
 
 // Rotating microcopy shown on the CSV importer button/progress bar while a
 // real upload request is in flight — purely cosmetic (doesn't imply we know
@@ -4224,13 +4232,13 @@ const stopImportMessageRotation = () => {
                 narrow screens instead of clipping options past the viewport edge */}
             <div style={{ display: "flex", gap: 10, marginTop: 14, marginBottom: 16, flexWrap: "wrap", maxWidth: "100%" }}>
               <div style={{ display: "flex", gap: 2, background: "rgba(255,255,255,0.03)", padding: 3, borderRadius: 10, border: "1px solid rgba(255,255,255,0.08)", overflowX: "auto", maxWidth: "100%", WebkitOverflowScrolling: "touch" }}>
-                {["ALL","Whale","Shark","Regular","Dormant"].map(t => {
+                {FAN_TIER_FILTERS.map(t => {
                   const count = t === "ALL" ? whales.length : whales.filter(w => w.tier === t).length
                   const active = whaleFilter === t
                   return (
                     <button key={t} className="tier-filter-btn" onClick={() => setWhaleFilter(t)}
                       style={{ padding: "6px 12px", borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none", flexShrink: 0, whiteSpace: "nowrap", background: active ? "linear-gradient(135deg, #22D3EE, #EC4899)" : "transparent", color: active ? "#06101A" : C.text }}>
-                      {t === "ALL" ? "All" : t}
+                      {FAN_TIER_FILTER_LABELS[t] || t}
                       <span style={{ marginLeft: 5, fontSize: 10, fontWeight: 700, opacity: active ? 0.75 : 0.6 }}>{count}</span>
                     </button>
                   )
@@ -6570,7 +6578,7 @@ const stopImportMessageRotation = () => {
         // guarded below rather than assumed to exist.
         const daysSinceLastTip = w.lastTipDate ? Math.floor((Date.now() - new Date(w.lastTipDate)) / 86400000) : null
         const tierColor = TIER_COLORS[w.tier] || C.cyan
-        const tierIcon = w.tier === 'Whale' ? '💎' : w.tier === 'Shark' ? '🦈' : w.tier === 'Regular' ? '⭐' : '💤'
+        const tierIcon = w.tier === 'Whale' ? '💎' : w.tier === 'Shark' ? '🦈' : w.tier === 'Regular' ? '⭐' : w.tier === 'Occasional' ? '🔄' : w.tier === 'New/Developing' ? '🌱' : '💤'
         // Reuse the shared churn-risk formula (w.churnRisk) from analytics.js —
         // same fix as the card grid — instead of a second local calculation.
         const churnRisk = w.churnRisk?.level && w.churnRisk.level !== "Unknown" ? w.churnRisk.level : null
