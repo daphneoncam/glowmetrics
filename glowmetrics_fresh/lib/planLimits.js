@@ -5,8 +5,8 @@
 
 // Platform connection limits (Free vs Pro)
 // DB enforcer: supabase/migrations/20260910b_document_primary_and_streaming_platform_columns.sql
-// Free tier allows 3 platforms (1 Primary + 2 Secondary); Pro allows unlimited.
-export const FREE_PLATFORM_LIMIT = 3
+// Free tier allows 2 platforms; Pro allows unlimited.
+export const FREE_PLATFORM_LIMIT = 2
 
 // Analysis window for Free tier
 // Free users see only the most recent 31 days per connected platform.
@@ -38,7 +38,7 @@ export function resolvePlatformRoles(streamingPlatforms, primaryProPlatform) {
 // Single canonical string for all PLATFORM_LIMIT_REACHED surfaces.
 // Used by: upload UI, API error responses, tooltip copy.
 export function platformLimitMessage() {
-  return `Free plan tracks ${FREE_PLATFORM_LIMIT} platforms (1 Primary + 2 Secondary). Upgrade to Pro to add more.`
+  return `Free plan tracks ${FREE_PLATFORM_LIMIT} platforms. Upgrade to Pro to add more.`
 }
 
 // ── Module data thresholds ───────────────────────────────────────────────────

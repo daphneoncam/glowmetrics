@@ -1645,10 +1645,9 @@ export default function Dashboard() {
 
   const isBetaUser = true
   const isPro = profile?.plan === 'pro' || profile?.plan === 'unlimited'
-  // Free tier: the primary platform (lib/planLimits.js resolver — onboarding
-  // selection only, never inferred from revenue) keeps full history; others
-  // keep 31 days. No primary on file → every platform is windowed.
-  const freeUnlimitedPlatform = isPro ? null : resolvePlanPlatformRoles(profile?.streaming_platforms, profile?.primary_pro_platform).primary
+  // Free tier: every platform (max FREE_PLATFORM_LIMIT = 2) keeps a rolling
+  // 31-day window. No primary-platform exception on Free (per 2026-11-10 plan change).
+  const freeUnlimitedPlatform = null
   const uploadLimit = Infinity
 
   // Compute windowed tips for free users; windowSummary feeds teaser signal detection
