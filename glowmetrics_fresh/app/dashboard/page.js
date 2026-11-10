@@ -4187,6 +4187,7 @@ const stopImportMessageRotation = () => {
             tips={accessible.tips}
             isPro={isPro}
             onOpenPlanner={() => handleTabChange('planner')}
+            onGoLive={() => handleTabChange('live')}
           />
         )}
 
