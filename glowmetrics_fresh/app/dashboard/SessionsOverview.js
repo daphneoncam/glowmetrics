@@ -11,7 +11,7 @@
 // → Session Performance cards in Row 3 instead of platform comparison.
 // Every number comes from lib/sessions/normalize.js (one formula each);
 // visuals reuse CamCash primitives (Command Center card / hero gradient,
-// Platforms PlatformCell, Stream Planner Pill / PlatChip, platform colors).
+// Platforms PlatformCell, Stream Planner Pill, platform colors).
 
 import React, { useEffect, useMemo, useRef, useState } from "react"
 import { platformDisplayName, platformColor } from "../../lib/constants"
@@ -24,7 +24,7 @@ import SessionsPulse, { pickPulse } from "./SessionsPulse"
 import { fmtUsd, fmtDuration } from "./LatestShows"
 import { card, HERO_GRADIENT } from "./CommandCenter"
 import { PlatformCell } from "./PlatformsIntelligence"
-import { Pill, PlatChip } from "./StreamPlanner"
+import { Pill } from "./StreamPlanner"
 import { PrimaryPlatformControl } from "./PrimaryPlatformPrompt"
 
 const C = {
@@ -375,32 +375,73 @@ function VsTypical({ vs, testId, long = false, e }) {
 }
 
 // ── Row 4 left: sessions list ────────────────────────────────────────────────
+// Row-only presentation helpers (Session Details keeps sessionTitle/lengthText).
+// They format existing session fields; nothing here computes a new value.
+const validTime = (iso) => !!iso && !isNaN(new Date(iso).getTime())
+// Selected-row edge colour, after each platform's logo (rows only; the shared
+// PLATFORM_COLORS used by charts are unchanged). Unknown platforms keep the pink edge.
+const ROW_PLATFORM_COLOR = { chaturbate: "#F7A21B", bongacams: "#F0484E", myfreecams: "#3DD26B" }
+const brandColor = (p) => ROW_PLATFORM_COLOR[String(p || "").toLowerCase().replace(/[^a-z]/g, "")] || null
+// Private sub-type as the import recorded it ("group", "spy", ...); none for plain private.
+const privateKind = (e) => {
+  const t = String(e.sessionType || "").trim()
+  if (!t || /^private( chat)?$/i.test(t)) return null
+  return `${t.charAt(0).toUpperCase()}${t.slice(1)}`
+}
+// Up to two facts per row. Private never gets a duration; a charge span only when one exists.
+function rowFacts(e) {
+  const count = e.type === "private"
+    ? { value: e.chargeCount, label: e.chargeCount === 1 ? "Charge" : "Charges", id: "row-count", col: "sx-fact-count" }
+    : { value: e.tipCount, label: e.tipCount === 1 ? "Tip" : "Tips", id: "row-count", col: "sx-fact-count" }
+  if (e.type === "private") {
+    return e.chargeSpanMinutes != null ? [{ value: fmtMinutes(e.chargeSpanMinutes), label: "Charge span", id: "row-duration", col: "sx-fact-duration" }, count] : [count]
+  }
+  if (e.type === "live") {
+    return [e.durationEstimated
+      ? { value: fmtMinutes(e.durationMinutes, true), label: "Est. duration", id: "row-duration", col: "sx-fact-duration" }
+      : { value: fmtDuration((e.durationMinutes || 0) * 60), label: e.running ? "So far" : "Duration", id: "row-duration", col: "sx-fact-duration" }, count]
+  }
+  // Free chat / imported: reconstructed from tips, so always labelled estimated.
+  return e.durationUnknown ? [count] : [{ value: fmtMinutes(e.durationMinutes, true), label: "Est. duration", id: "row-duration", col: "sx-fact-duration" }, count]
+}
+
 function SessionRow({ e, tz, selected, onSelect, vs }) {
   const t = TYPE[e.type]
-  const status = e.running ? { label: "LIVE NOW", color: C.green } : e.isNew ? { label: "JUST ENDED", color: C.pink } : t
+  const kind = e.type === "private" ? privateKind(e) : null
+  const status = e.running ? { label: "LIVE NOW", color: C.green } : e.isNew ? { label: "JUST ENDED", color: C.pink }
+    : kind ? { ...t, label: `${t.label} · ${kind.toUpperCase()}` } : t
+  const platform = e.platforms[0]
+  const accent = brandColor(platform) || C.pink // selected edge follows the session's platform
   return (
     <button data-testid={`history-${e.id}`} onClick={onSelect} aria-pressed={selected} className="sx-row" style={{
-      ...inset, width: "100%", textAlign: "left", cursor: "pointer", padding: "10px 14px", display: "grid",
-      gridTemplateColumns: "32px minmax(0,1fr) 72px 50px 44px 10px", gap: 8, alignItems: "center", color: C.white,
-      ...(selected ? { border: `1px solid ${C.pink}`, boxShadow: `0 0 0 1px ${C.indigo}55, 0 0 22px ${C.pink}40`, background: "rgba(30,18,52,0.75)" } : {}),
+      ...inset, width: "100%", textAlign: "left", cursor: "pointer", padding: "11px 14px", color: C.white,
+      ...(selected ? { border: `1px solid ${accent}`, boxShadow: `0 0 0 1px ${accent}55, 0 0 22px ${accent}40`, background: "rgba(30,18,52,0.75)" } : {}),
     }}>
-      <span aria-hidden="true" style={{ width: 36, height: 36, borderRadius: 9, display: "grid", placeItems: "center", background: "rgba(255,255,255,0.05)", color: e.type === "imported" ? C.text : C.cyan, fontSize: 14 }}>{e.type === "imported" ? "▤" : e.type === "private" ? "🔒" : "▶"}</span>
-      <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap", overflow: "hidden" }}>
-          <span style={{ fontWeight: 800, fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis" }}>{sessionTitle(e, tz)}</span>
+      <span aria-hidden="true" className="sx-row-icon" style={{ width: 32, height: 32, borderRadius: 9, display: "grid", placeItems: "center", background: "rgba(255,255,255,0.05)", color: e.type === "imported" ? C.text : C.cyan, fontSize: 13 }}>{e.type === "imported" ? "▤" : e.type === "private" ? "🔒" : "▶"}</span>
+      <span className="sx-row-id">
+        <span className="sx-row-head" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px 8px" }}>
+          {platform && <span data-testid={`platform-badge-${platform}`} style={{ fontWeight: 800, fontSize: 13.5, color: C.white, overflowWrap: "anywhere" }}>{pName(platform)}</span>}
+          {e.platforms.length > 1 && <span title={e.platforms.slice(1).map(pName).join(", ")} style={{ fontSize: 11.5, color: C.text }}>+{e.platforms.length - 1}</span>}
+          <Badge text={status.label} color={status.color} testId={`type-badge-${e.type}`} />
           {e.isNew && <span data-testid="row-new-badge" style={{ display: "none" }}>NEW</span>}
         </span>
-        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden" }}>
-          <Badge text={status.label} color={status.color} testId={`type-badge-${e.type}`} />
-          {e.platforms.slice(0, 1).map((p, i) => <span key={p} data-testid={`platform-badge-${p}`}><PlatChip name={pName(p)} i={i} /></span>)}
-          {e.platforms.length > 1 && <span title={e.platforms.slice(1).map(pName).join(", ")} style={{ color: C.text }}>+{e.platforms.length - 1}</span>}
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>· {whenText(e.startTime, tz)}</span>
+        {validTime(e.startTime) && <span style={{ display: "block", fontSize: 11.5, color: C.text, marginTop: 4 }}>{whenText(e.startTime, tz)}</span>}
+      </span>
+      <span className="sx-row-stats">
+        <span className="sx-row-money">
+          <span style={{ display: "block", fontWeight: 900, fontSize: 15, whiteSpace: "nowrap" }}>{fmtUsd(e.totalUSD)}</span>
+          {vs ? <VsTypical vs={vs} testId={`row-vs-${e.id}`} /> : <span style={{ display: "block", fontSize: 11, color: C.text }}>{e.type === "private" ? "Private total" : "Total earned"}</span>}
+        </span>
+        <span className="sx-row-facts">
+          {rowFacts(e).map((f) => (
+            <span key={f.id} data-testid={f.id} className={f.col}>
+              <span style={{ display: "block", fontWeight: 800, fontSize: 13, whiteSpace: "nowrap" }}>{f.value}</span>
+              <span style={{ display: "block", fontSize: 11, color: C.text }}>{f.label}</span>
+            </span>
+          ))}
         </span>
       </span>
-      <span><div style={{ fontWeight: 900, fontSize: 14 }}>{fmtUsd(e.totalUSD)}</div>{vs ? <VsTypical vs={vs} testId={`row-vs-${e.id}`} /> : <div style={{ fontSize: 11, color: C.text }}>Total Earned</div>}</span>
-      <span><div style={{ fontWeight: 800, fontSize: 13 }}>{lengthText(e)}</div><div style={{ fontSize: 11, color: C.text }}>{e.type === "live" ? "Duration" : e.type === "private" ? "Charge span" : "Est. span"}</div></span>
-      <span><div style={{ fontWeight: 800, fontSize: 13 }}>{e.type === "private" ? e.chargeCount : e.tipCount}</div><div style={{ fontSize: 11, color: C.text }}>{e.type === "private" ? (e.chargeCount === 1 ? "Charge" : "Charges") : (e.tipCount === 1 ? "Tip" : "Tips")}</div></span>
-      <span aria-hidden="true" style={{ color: C.text, fontSize: 16 }}>›</span>
+      <span aria-hidden="true" className="sx-row-chev" style={{ color: C.text, fontSize: 16 }}>›</span>
     </button>
   )
 }
@@ -709,10 +750,31 @@ export default function SessionsOverview({ tips, shows, paidSessions, tz, showsL
         @keyframes sxFlash { 0% { filter: drop-shadow(0 0 26px rgba(34,211,238,.9)); } 100% { filter: drop-shadow(0 0 18px rgba(124,92,255,.45)); } }
         .sx-root .sx-row { transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease; }
         .sx-root .sx-row:hover { transform: translateY(-1px); border-color: rgba(34,211,238,0.35); }
+        /* Recent Sessions rows: sized by the card (container), not the window.
+           Narrow card: identity on top, earnings + facts in aligned columns beneath.
+           Wide card: one line with fixed metric columns, so every row lines up. */
+        .sx-root .sx-list { container-type: inline-size; container-name: sxlist; min-width: 0; }
+        .sx-root .sx-row { display: grid; grid-template-columns: 32px minmax(0,1fr) 12px; grid-template-areas: "icon id chev" "stats stats stats"; column-gap: 10px; row-gap: 10px; align-items: center; }
+        .sx-root .sx-row-icon { grid-area: icon; }
+        .sx-root .sx-row-id { grid-area: id; min-width: 0; }
+        .sx-root .sx-row-chev { grid-area: chev; }
+        .sx-root .sx-row-stats { grid-area: stats; display: grid; grid-template-columns: minmax(0,1.15fr) minmax(0,1.1fr) minmax(0,.75fr); column-gap: 10px; align-items: end; min-width: 0; }
+        .sx-root .sx-row-facts { display: contents; }
+        .sx-root .sx-fact-duration { grid-column: 2; }
+        .sx-root .sx-fact-count { grid-column: 3; }
+        @container sxlist (min-width: 460px) {
+          .sx-root .sx-row { grid-template-columns: 32px minmax(0,1fr) auto 12px; grid-template-areas: "icon id stats chev"; }
+          .sx-root .sx-row-stats { grid-template-columns: 90px 76px 50px; column-gap: 12px; align-items: center; }
+          .sx-root .sx-row-money { text-align: right; }
+        }
+        @container sxlist (max-width: 299px) { .sx-root .sx-row-head { flex-direction: column; align-items: flex-start !important; } }
+        @container sxlist (min-width: 460px) and (max-width: 619px) {
+          .sx-root .sx-row-head { flex-direction: column; align-items: flex-start !important; }
+        }
         @media (prefers-reduced-motion: reduce) { .sx-root .sx-pulse, .sx-root .sx-flash { animation: none; } .sx-root .sx-row { transition: none; } .sx-root .sx-row:hover { transform: none; } }
         @media (max-width: 1150px) { .sx-root .sx-hero { grid-template-columns: 1fr !important; } }
         @media (max-width: 1000px) { .sx-root .sx-plat, .sx-root .sx-md { grid-template-columns: 1fr !important; } }
-        @media (max-width: 640px) { .sx-root .sx-cells, .sx-root .sx-dgrid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; } .sx-root .sx-row { grid-template-columns: 36px 1fr auto !important; } .sx-root .sx-row > span:nth-child(n+4) { display: none; } }
+        @media (max-width: 640px) { .sx-root .sx-cells, .sx-root .sx-dgrid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; } }
       `}</style>
 
       {/* Row 1 */}
@@ -767,7 +829,7 @@ export default function SessionsOverview({ tips, shows, paidSessions, tz, showsL
 
       {/* Row 4 */}
       <div className="sx-md" style={{ display: "grid", gridTemplateColumns: "45fr 55fr", gap: 16, alignItems: "stretch" }}>
-        <div data-testid="session-history" style={card({ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10, background: "rgba(12,15,28,0.78)", boxShadow: "none" })}>
+        <div data-testid="session-history" className="sx-list" style={card({ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10, background: "rgba(12,15,28,0.78)", boxShadow: "none" })}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
             <div>
               <div style={{ fontSize: 19, fontWeight: 900, color: C.white }}>Recent Sessions</div>
