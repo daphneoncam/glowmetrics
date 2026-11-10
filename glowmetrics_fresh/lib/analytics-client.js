@@ -6,10 +6,19 @@ let sessionStartTime = null;
 let lastActivityTime = null;
 let currentPageStartTime = null;
 let maxScrollDepth = 0;
+// Volume guards (2026-11-06, when site-wide tracking was switched on):
+// one 'input' and one 'page_exit' row per page view, scroll rows only when a
+// new 25/50/75/100% milestone is reached, and init runs once per page load.
+let initialized = false;
+let inputTrackedThisPage = false;
+let exitTrackedThisPage = false;
+let lastScrollMilestone = 0;
 
 // Initialize session on app load
 export function initializeAnalytics() {
   if (typeof window === 'undefined') return;
+  if (initialized) return;
+  initialized = true;
 
   sessionId = generateSessionId();
   sessionStartTime = Date.now();
@@ -54,7 +63,7 @@ export async function trackEvent(eventType, properties = {}, token = null) {
     const body = {
       eventType,
       pageUrl: window.location.pathname,
-      referrer: document.referrer,
+      referrer: stripQuery(document.referrer),
       properties: {
         sessionId,
         ...properties,
@@ -83,6 +92,9 @@ export function trackPageView() {
 
   currentPageStartTime = Date.now();
   maxScrollDepth = 0;
+  lastScrollMilestone = 0;
+  inputTrackedThisPage = false;
+  exitTrackedThisPage = false;
 
   trackEvent('engagement', {
     engagementType: 'page_view',
@@ -107,10 +119,11 @@ function setupClickTracking() {
       trackEvent('click', {
         elementType: target.tagName.toLowerCase(),
         elementId: target.id,
-        elementClass: target.className,
+        elementClass: typeof target.className === 'string' ? target.className.substring(0, 200) : null,
         elementSelector: generateSelector(target),
         buttonText: target.textContent?.trim().substring(0, 100),
-        linkHref: target.href || target['data-href'],
+        // Query strings are dropped: links can carry tokens or ids.
+        linkHref: stripQuery(target.href || target.getAttribute('data-href')),
         sectionName: target.closest('[data-section]')?.getAttribute('data-section'),
         ctaName: target.getAttribute('data-cta'),
         clickX: e.clientX,
@@ -158,12 +171,15 @@ function setupScrollTracking() {
     const scrollDepth = Math.round(
       ((window.scrollY + window.innerHeight) / document.documentElement.scrollHeight) * 100
     );
-    maxScrollDepth = Math.max(maxScrollDepth, scrollDepth);
+    maxScrollDepth = Math.min(100, Math.max(maxScrollDepth, scrollDepth));
 
     scrollTimeout = setTimeout(() => {
+      const milestone = Math.floor(maxScrollDepth / 25) * 25;
+      if (milestone <= lastScrollMilestone) return;
+      lastScrollMilestone = milestone;
       trackEvent('engagement', {
         engagementType: 'scroll',
-        scrollDepthPercent: maxScrollDepth,
+        scrollDepthPercent: milestone,
         sessionId,
       });
     }, 1000);
@@ -196,6 +212,9 @@ function setupEngagementTracking() {
     'input',
     () => {
       lastActivityTime = Date.now();
+      // Never the typed value — only that the visitor typed on this page.
+      if (inputTrackedThisPage) return;
+      inputTrackedThisPage = true;
       trackEvent('engagement', {
         engagementType: 'input',
         sessionId,
@@ -207,6 +226,8 @@ function setupEngagementTracking() {
 
 function trackTimeOnPage() {
   if (!currentPageStartTime) return;
+  if (exitTrackedThisPage) return;
+  exitTrackedThisPage = true;
   const timeOnPageSeconds = Math.round((Date.now() - currentPageStartTime) / 1000);
 
   trackEvent('engagement', {
@@ -298,6 +319,11 @@ export function trackTip(properties = {}, token = null) {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+function stripQuery(url) {
+  if (!url || typeof url !== 'string') return null;
+  return url.split(/[?#]/)[0].substring(0, 500);
+}
+
 function generateSessionId() {
   return 'sess_' + Math.random().toString(36).substr(2, 9);
 }
@@ -349,8 +375,8 @@ function generateSelector(element) {
       parts.unshift(selector);
       break;
     } else {
-      if (el.className) {
-        selector += '.' + el.className.split(/\s+/).join('.');
+      if (typeof el.className === 'string' && el.className.trim()) {
+        selector += '.' + el.className.trim().split(/\s+/).join('.');
       }
       parts.unshift(selector);
       el = el.parentElement;

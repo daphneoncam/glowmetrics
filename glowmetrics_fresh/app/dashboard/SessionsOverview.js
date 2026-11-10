@@ -18,8 +18,9 @@ import { platformDisplayName, platformColor } from "../../lib/constants"
 import {
   SUPPORTED_PLATFORMS, buildSessionHistory, filterSessionHistory, dailySessionStats,
   liveSessionSnapshot, withTodayDerived, todaySignal, vsYesterdayByNow, todayCumulative,
-  sessionTimeline, timeAgo, sessionBuckets, sessionFanDrivers, sessionVsTypical, sessionCompletenessMap, matchPlannedStream, sessionsMode, overallSessionStats, sessionPerformance, overallSignal,
+  sessionTimeline, timeAgo, sessionBuckets, sessionFanDrivers, sessionVsTypical, sessionCompletenessMap, matchPlannedStream, sessionsMode, overallSessionStats, sessionPerformance, overallSignal, liveVerifiedHourly,
 } from "../../lib/sessions/normalize"
+import SessionsPulse, { pickPulse } from "./SessionsPulse"
 import { fmtUsd, fmtDuration } from "./LatestShows"
 import { card, HERO_GRADIENT } from "./CommandCenter"
 import { PlatformCell } from "./PlatformsIntelligence"
@@ -687,6 +688,11 @@ export default function SessionsOverview({ tips, shows, paidSessions, tz, showsL
   }), [history, allTips, tips, allPaidSessions, windowStarts, isPro, tipsLoadComplete])
   const vsById = useMemo(() => new Map(history.map((e) => [e.id, sessionVsTypical(e, history, { completeness })]).filter(([, v]) => v)), [history, completeness])
   const noData = mode.kind === "none" && !runningEntry && !showsLoading
+  // Session Pulse: one observation by the approved priority (selection only, no new formulas).
+  const pulse = useMemo(() => pickPulse({ running: runningEntry, history: filterSessionHistory(history, {}), vsById }), [history, vsById, runningEntry?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  const pulseFan = useMemo(() => (pulse && pulse.e && !pulse.e.running ? sessionFanDrivers(pulse.e, { tips: T0, paidSessions: P0 })[0] || null : null), [pulse, tips, paidSessions]) // eslint-disable-line react-hooks/exhaustive-deps
+  const pulseHourly = pulse && pulse.kind === "new_show" ? liveVerifiedHourly(pulse.e) : null
+  const openSession = (id) => { setFilter("all"); setSelectedId(id) }
   const light = mode.kind !== "none" && perf.meaningfulSessions < 3
   // Platform cards only for platforms the creator actually has data on.
   const cardPlatforms = ["bongacams", "chaturbate", "myfreecams"].filter((p) => mode.platforms.includes(p))
@@ -733,10 +739,8 @@ export default function SessionsOverview({ tips, shows, paidSessions, tz, showsL
       </div>
 
       {noData ? <Activation onImport={onImport} onStartLive={onStartLive} /> : <>
-      {/* Row 2 */}
-      {scope === "overall"
-        ? <OverallHero o={overall} sourceLabel={sourceLabel} historyNote={historyNote} tz={tz} light={light} />
-        : <Hero stats={stats} range={range} comparison={comparison} trend={trend} live={snap} now={now} light={light} onStartLive={onStartLive} />}
+      {/* Row 2: Session Pulse replaces the hero card (hero components are kept in the file, just not rendered) */}
+      <SessionsPulse pick={pulse} tz={tz} topFan={pulseFan} hourly={pulseHourly} onOpen={openSession} onImport={onImport} onPlan={onOpenPlanner} />
 
       {/* Row 3 */}
       {showPerf ? (

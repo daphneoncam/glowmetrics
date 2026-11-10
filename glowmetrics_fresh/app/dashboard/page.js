@@ -1576,9 +1576,6 @@ export default function Dashboard() {
   const [liveTick, setLiveTick] = useState(0)
   const [minuteTick, setMinuteTick] = useState(0) // increments every 60s to refresh time-based alerts
   const [betaCount, setBetaCount] = useState(null)
-  const [earlyAccessEmail, setEarlyAccessEmail] = useState('')
-  const [earlyAccessSubmitted, setEarlyAccessSubmitted] = useState(false)
-  const [earlyAccessSubmitting, setEarlyAccessSubmitting] = useState(false)
   const [tipPage, setTipPage] = useState(0)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -1648,10 +1645,9 @@ export default function Dashboard() {
 
   const isBetaUser = true
   const isPro = profile?.plan === 'pro' || profile?.plan === 'unlimited'
-  // Free tier: the primary platform (lib/planLimits.js resolver — onboarding
-  // selection only, never inferred from revenue) keeps full history; others
-  // keep 31 days. No primary on file → every platform is windowed.
-  const freeUnlimitedPlatform = isPro ? null : resolvePlanPlatformRoles(profile?.streaming_platforms, profile?.primary_pro_platform).primary
+  // Free tier: every platform (max FREE_PLATFORM_LIMIT = 2) keeps a rolling
+  // 31-day window. No primary-platform exception on Free (per 2026-11-10 plan change).
+  const freeUnlimitedPlatform = null
   const uploadLimit = Infinity
 
   // Compute windowed tips for free users; windowSummary feeds teaser signal detection
@@ -5962,7 +5958,7 @@ const stopImportMessageRotation = () => {
                 <div style={{ flex: 1, fontSize: 12.5, color: C.text, lineHeight: 1.5 }}>
                   You've reached the free plan's 3-platform limit. Upgrade to Pro for more platforms and full history on all of them.
                 </div>
-                <Button as="a" href="/pricing" style={{ flexShrink: 0, padding: "8px 14px", fontSize: 12, whiteSpace: "nowrap" }}>Upgrade →</Button>
+                <Button as="a" href="/pricing" onClick={() => gtmTrack('upgrade_to_pro_clicked', { source: 'platform_limit_banner' })} style={{ flexShrink: 0, padding: "8px 14px", fontSize: 12, whiteSpace: "nowrap" }}>Upgrade →</Button>
               </div>
             )}
             <div style={{ ...glassCard, borderRadius: 14, padding: 32, marginBottom: 16, position: "relative", overflow: "hidden" }}>
@@ -6094,7 +6090,7 @@ const stopImportMessageRotation = () => {
                       🔒 Subscribe to view your insights for <strong style={{ color: C.white }}>{lockedPreview.platform}</strong>
                     </div>
                     <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-                      <Button as="a" href="/pricing" style={{ padding: "8px 16px", fontSize: 12.5 }}>Subscribe →</Button>
+                      <Button as="a" href="/pricing" onClick={() => gtmTrack('upgrade_to_pro_clicked', { source: 'import_locked_preview' })} style={{ padding: "8px 16px", fontSize: 12.5 }}>Subscribe →</Button>
                       <Button variant="secondary" onClick={resetImport} style={{ padding: "8px 16px", fontSize: 12.5 }}>Not now</Button>
                     </div>
                   </div>
@@ -6117,7 +6113,7 @@ const stopImportMessageRotation = () => {
                   <p style={{ fontSize: 13, color: C.text, lineHeight: 1.65, marginBottom: 16 }}>
                     The <strong style={{ color: C.white }}>free plan</strong> tracks up to <strong style={{ color: C.cyan }}>{FREE_PLATFORM_LIMIT} platforms</strong> with a rolling <strong style={{ color: C.cyan }}>31-day analysis window</strong> per platform. A <strong style={{ color: C.white }}>subscription</strong> unlocks full historical analysis and deeper insights into churn, re-engagement, and cross-platform trends.
                   </p>
-                  <Button onClick={() => router.push('/pricing')} style={{ padding: "12px 26px", fontSize: 13 }}>
+                  <Button onClick={() => { gtmTrack('upgrade_to_pro_clicked', { source: 'plan_explainer' }); router.push('/pricing') }} style={{ padding: "12px 26px", fontSize: 13 }}>
                     View Plans & Subscribe →
                   </Button>
                 </>
@@ -6945,51 +6941,21 @@ const stopImportMessageRotation = () => {
               <div style={{ textAlign: "center", padding: "12px 16px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 10, marginBottom: 24 }}>
                 <div style={{ fontSize: 13, color: C.gold, fontWeight: 600 }}>💡 Most creators miss 30–60% of their earning potential without this</div>
               </div>
-              {earlyAccessSubmitted ? (
-                <div style={{ textAlign: "center", padding: "8px 0 16px" }}>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>🎉</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: C.white, marginBottom: 6 }}>You're on the list!</div>
-                  <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>We'll email you with a founding user discount when we launch.</div>
-                  <button onClick={() => setShowUpgradeModal(false)} style={{ padding: "10px 28px", borderRadius: 10, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)", color: C.muted, fontSize: 13, cursor: "pointer" }}>Close</button>
-                </div>
-              ) : (
-                <>
-                  <input
-                    type="email"
-                    value={earlyAccessEmail}
-                    onChange={e => setEarlyAccessEmail(e.target.value)}
-                    placeholder="your@email.com"
-                    style={{ width: "100%", padding: "13px 16px", borderRadius: 12, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: C.white, fontSize: 14, outline: "none", marginBottom: 10, boxSizing: "border-box" }}
-                    onFocus={e => e.target.style.borderColor = "rgba(34,211,238,0.5)"}
-                    onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.15)"}
-                  />
-                  <Button
-                    disabled={!earlyAccessEmail.trim() || earlyAccessSubmitting}
-                    onClick={async () => {
-                      if (!earlyAccessEmail.trim()) return
-                      setEarlyAccessSubmitting(true)
-                      track('early_access_signup', { email: earlyAccessEmail })
-                      try {
-                        const { data: { user: currentUser } } = await supabase.auth.getUser()
-                        await supabase.from('early_access').insert({
-                          email: earlyAccessEmail.trim(),
-                          user_id: currentUser?.id || null,
-                          signed_up_at: new Date().toISOString()
-                        }).then(() => {})
-                      } catch(e) {}
-                      setEarlyAccessSubmitted(true)
-                      setEarlyAccessSubmitting(false)
-                      showToast("🎉 You're on the founding user list!")
-                    }}
-                    style={{ width: "100%", padding: "16px", borderRadius: 14, fontSize: 16, marginBottom: 12 }}>
-                    {earlyAccessSubmitting ? "Saving..." : "🔓 Get Early Access"}
-                  </Button>
-                  <div style={{ textAlign: "center", fontSize: 12, color: C.muted, marginBottom: 20 }}>Launching soon • Founding users get lifetime discount</div>
-                  <button onClick={() => setShowUpgradeModal(false)} style={{ width: "100%", padding: "11px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: C.muted, fontSize: 13, cursor: "pointer" }}>
-                    Maybe later
-                  </button>
-                </>
-              )}
+              {/* Subscriptions are live: send the creator to the pricing page
+                  (real Stripe checkout) instead of the old "launching soon"
+                  waitlist. The waitlist also sent the typed email address to
+                  analytics; no personal data is tracked here. */}
+              <Button
+                as="a"
+                href="/pricing"
+                onClick={() => gtmTrack('upgrade_to_pro_clicked', { source: 'upgrade_modal' })}
+                style={{ width: "100%", padding: "16px", borderRadius: 14, fontSize: 16, marginBottom: 12, boxSizing: "border-box" }}>
+                See Pro Plans →
+              </Button>
+              <div style={{ textAlign: "center", fontSize: 12, color: C.muted, marginBottom: 20 }}>7-day free trial • $9.99/month or $99/year</div>
+              <button onClick={() => setShowUpgradeModal(false)} style={{ width: "100%", padding: "11px", borderRadius: 10, background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: C.muted, fontSize: 13, cursor: "pointer" }}>
+                Maybe later
+              </button>
             </div>
           </div>
         </div>

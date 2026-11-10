@@ -1,0 +1,537 @@
+/*
+ * CamCash Sessions — premium glass presentation layer
+ * Suggested file: app/dashboard/SessionsLuxury.module.css
+ * Scoped CSS Module; no global selectors, Tailwind config or backend changes.
+ * Do not replace existing dashboard fonts: next/font/local font classes are inherited.
+ * Props/data are provided by the existing Sessions container and analytics engine.
+ *
+ * Local alignments with the live Command Center (CommandCenter.js / page.js `C`),
+ * applied here only — no shared or global style is changed:
+ *   --s-positive  #37d5ae -> #10B981   (dashboard "positive movement" green)
+ *   --s-negative  #fb7185 -> #F87171   (dashboard red)
+ *   .primaryAction background -> the CamCash CTA gradient used by BrandButton
+ *                                 (#22D3EE -> #7C5CFF -> #EC4899)
+ *   .barSelected .barFill keeps the public (violet) / private (pink) layer
+ *                                 colours so the selected bar still matches the
+ *                                 legend; selection = the specified rim + glow
+ *   .page padding -> 0 (the dashboard's .dash-main already provides 32px);
+ *                                 the 840/610px .page padding rules are kept
+ *   Additions are grouped at the end under "Structural additions".
+ */
+
+.page {
+  --s-bg: #090812;
+  --s-bg-deep: #070711;
+  --s-surface: rgba(19, 17, 34, .77);
+  --s-surface-raised: rgba(29, 23, 45, .79);
+  --s-surface-inset: rgba(8, 10, 23, .62);
+  --s-border: rgba(204, 186, 246, .14);
+  --s-border-strong: rgba(224, 197, 255, .25);
+  --s-text: #f8f5ff;
+  --s-muted: #a7a1b8;
+  --s-subtle: #77748d;
+  --s-pink: #ec4899;
+  --s-pink-light: #fc91c5;
+  --s-violet: #7c5cff;
+  --s-cyan: #22d3ee;
+  --s-positive: #10B981;
+  --s-negative: #F87171;
+  --s-radius-lg: 22px;
+  --s-radius-md: 17px;
+  --s-radius-sm: 12px;
+  --s-shadow: 0 20px 60px rgba(0, 0, 0, .28);
+  --s-ease: cubic-bezier(.2, .75, .2, 1);
+
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  min-width: 0;
+  color: var(--s-text);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.48;
+  padding: 0; /* local alignment: the dashboard shell (.dash-main) already pads 32px */
+  background: transparent; /* existing Command Center/dashboard background stays authoritative */
+}
+
+.page, .page * { box-sizing: border-box; }
+.page button, .page a, .page input { font: inherit; }
+.page button { cursor: pointer; }
+.page button:disabled { cursor: not-allowed; opacity: .45; }
+.page :is(button, a, input, select):focus-visible {
+  outline: 2px solid var(--s-cyan);
+  outline-offset: 3px;
+}
+
+/* Ambient lighting: do not repaint the dashboard shell. */
+.ambient {
+  position: absolute;
+  z-index: -1;
+  inset: -22px 0 auto;
+  height: 470px;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 38% 45% at 70% 8%, rgba(236,72,153,.105), transparent 80%),
+    radial-gradient(ellipse 40% 48% at 21% 30%, rgba(124,92,255,.11), transparent 78%);
+}
+
+/* Typography */
+.eyebrow {
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--s-pink-light);
+}
+.pageTitle {
+  margin: 0;
+  font-size: clamp(28px, 2.3vw, 37px);
+  line-height: 1.08;
+  letter-spacing: -.042em;
+  font-weight: 780;
+  color: #fffaff;
+}
+.pageSubtitle { margin: 7px 0 0; font-size: 13px; color: var(--s-muted); }
+.sectionTitle { margin: 0; font-size: 16px; font-weight: 735; letter-spacing: -.022em; }
+.sectionHint { margin: 4px 0 0; font-size: 12px; color: var(--s-muted); }
+.microLabel { font-size: 10px; font-weight: 700; letter-spacing: .065em; text-transform: uppercase; color: var(--s-muted); }
+.money { font-variant-numeric: tabular-nums lining-nums; letter-spacing: -.035em; }
+.muted { color: var(--s-muted); }
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* Page header */
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
+.headerCopy { min-width: 0; }
+.headerActions { display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
+.primaryAction {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 38px; padding: 0 16px; border-radius: 12px;
+  color: #fff; font-size: 12px; font-weight: 750;
+  background: linear-gradient(90deg, #22D3EE 0%, #7C5CFF 48%, #EC4899 100%);
+  border: 1px solid rgba(255,191,228,.38);
+  box-shadow: 0 5px 20px rgba(236,72,153,.21), inset 0 1px rgba(255,255,255,.2);
+  text-decoration: none;
+  transition: transform .18s var(--s-ease), filter .18s var(--s-ease);
+}
+.primaryAction:hover { transform: translateY(-1px); filter: brightness(1.09); }
+.secondaryAction {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: 34px; padding: 0 12px; color: #e9e3fb;
+  font-size: 12px; font-weight: 680; text-decoration: none;
+  border: 1px solid var(--s-border-strong); border-radius: 11px;
+  background: rgba(42,36,65,.58);
+  transition: background .18s ease, border-color .18s ease;
+}
+.secondaryAction:hover { background: rgba(69,48,94,.7); border-color: rgba(236,72,153,.4); }
+
+/* Shared glass primitives: three visibly different depth levels. */
+.glassFeature, .glassPanel, .glassInset {
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+  border-radius: var(--s-radius-lg);
+  overflow: hidden;
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  backdrop-filter: blur(18px) saturate(130%);
+}
+.glassFeature {
+  background: linear-gradient(117deg, rgba(35,24,57,.88), rgba(17,17,36,.83) 58%, rgba(26,19,43,.85));
+  border: 1px solid rgba(226,188,250,.28);
+  box-shadow: 0 24px 72px rgba(1,0,8,.31), 0 9px 40px rgba(124,92,255,.08), inset 0 1px rgba(255,255,255,.095);
+}
+.glassFeature::before {
+  content: ''; position: absolute; z-index: -1; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at 12% 5%, rgba(236,72,153,.16), transparent 54%),
+              radial-gradient(ellipse at 100% 35%, rgba(124,92,255,.11), transparent 52%);
+}
+.glassPanel {
+  background: var(--s-surface);
+  border: 1px solid var(--s-border);
+  box-shadow: var(--s-shadow), inset 0 1px rgba(255,255,255,.04);
+}
+.glassInset {
+  border-radius: var(--s-radius-sm);
+  background: var(--s-surface-inset);
+  border: 1px solid rgba(188,172,233,.105);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+/* Selective active edge: reserved for one currently selected item. */
+.selectedGlass {
+  border-color: rgba(247,122,192,.73) !important;
+  background: linear-gradient(114deg, rgba(72,27,76,.53), rgba(28,20,47,.82)) !important;
+  box-shadow: 0 0 0 1px rgba(236,72,153,.18), 0 9px 25px rgba(236,72,153,.12), inset 0 1px rgba(255,255,255,.085) !important;
+}
+
+/* Session Pulse */
+.pulse {
+  display: grid; grid-template-columns: minmax(0,1.5fr) minmax(190px,.9fr) auto;
+  align-items: center; gap: 20px; min-height: 112px;
+  padding: 21px 24px; margin-bottom: 16px;
+}
+.pulseLead { display: flex; align-items: flex-start; gap: 13px; min-width: 0; }
+.pulseIcon {
+  display: grid; place-items: center; flex: 0 0 37px; height: 37px;
+  border: 1px solid rgba(250,141,201,.36); border-radius: 12px;
+  color: #ff9cce; background: rgba(236,72,153,.12);
+  box-shadow: inset 0 1px rgba(255,255,255,.12), 0 0 18px rgba(236,72,153,.08);
+}
+.pulseTitle { margin: 0 0 5px; font-size: 17px; font-weight: 770; letter-spacing: -.027em; }
+.pulseMessage { margin: 0; color: #e9e4f2; font-size: 13px; font-weight: 590; max-width: 58ch; }
+.pulseEvidence { margin: 5px 0 0; color: var(--s-muted); font-size: 11px; }
+.pulseSignal { padding-left: 20px; border-left: 1px solid rgba(208,187,244,.17); }
+.signalValue { margin-top: 4px; font-size: 19px; font-weight: 780; line-height: 1.2; letter-spacing: -.035em; }
+.pulseAction { justify-self: end; }
+
+/* Master/detail grid */
+.workspace { display: grid; grid-template-columns: minmax(235px, .31fr) minmax(0, .69fr); gap: 15px; align-items: start; }
+.leftRail, .detail { display: grid; gap: 14px; min-width: 0; }
+.railCard { padding: 17px 15px 16px; }
+.cardHeading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 13px; }
+.linkButton { background: none; border: 0; padding: 3px; color: var(--s-pink-light); font-weight: 700; font-size: 11px; white-space: nowrap; }
+.linkButton:hover { color: #ffd0e8; text-decoration: underline; }
+
+/* Recent sessions — rows should NOT each look like a separate enormous card */
+.sessionList { display: grid; gap: 6px; }
+.sessionRow {
+  display: grid; grid-template-columns: 37px minmax(0,1fr) auto;
+  width: 100%; align-items: center; gap: 10px; min-height: 67px;
+  padding: 10px; border: 1px solid transparent; border-radius: 13px;
+  background: rgba(9,10,23,.29); color: var(--s-text);
+  text-align: left; min-width: 0;
+  transition: background .18s var(--s-ease), border-color .18s var(--s-ease), transform .18s var(--s-ease), box-shadow .18s var(--s-ease);
+}
+.sessionRow:hover { background: rgba(48,34,66,.52); border-color: rgba(218,175,245,.18); transform: translateY(-1px); }
+.sessionRowActive {
+  border-color: rgba(244,120,193,.64);
+  background: linear-gradient(100deg, rgba(103,35,91,.38), rgba(30,24,48,.74));
+  box-shadow: inset 2px 0 0 #ec4899, 0 0 0 1px rgba(236,72,153,.07), 0 9px 22px rgba(0,0,0,.15);
+}
+.platformIcon {
+  display: grid; place-items: center; width: 37px; height: 37px;
+  border-radius: 11px; background: rgba(103,67,159,.24);
+  border: 1px solid rgba(202,154,255,.28); font-size: 11px; font-weight: 850;
+  letter-spacing: .02em; color: #f7e6ff;
+}
+.sessionMain { display: grid; gap: 3px; min-width: 0; }
+.sessionName { color: #f7f3ff; font-size: 12px; font-weight: 740; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sessionMeta { color: var(--s-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sessionAmount { align-self: center; text-align: right; font-size: 14px; font-weight: 790; font-variant-numeric: tabular-nums; letter-spacing: -.035em; }
+.sessionDelta { display: block; font-size: 10px; font-weight: 690; margin-top: 3px; }
+.deltaPositive { color: var(--s-positive); }
+.deltaNegative { color: var(--s-negative); }
+.deltaNeutral { color: var(--s-subtle); }
+
+/* Compact upgrade teaser; show ONLY when entitlements justify it */
+.upgrade { padding: 17px; border-color: rgba(236,72,153,.24); }
+.upgradeTitle { font-size: 15px; font-weight: 770; margin: 0 0 5px; }
+.upgradeText { font-size: 12px; color: var(--s-muted); line-height: 1.55; margin: 0 0 12px; }
+
+/* Selected session detail */
+.identityRow { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 2px 2px 0; }
+.identityMain { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; min-width: 0; }
+.identityName { font-size: 17px; font-weight: 760; letter-spacing: -.027em; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 24px;
+  padding: 3px 9px; border-radius: 8px; border: 1px solid rgba(201,182,232,.18);
+  background: rgba(45,35,65,.51); color: #cfc8e1; font-size: 10px; font-weight: 680;
+}
+.chipQuiet { background: rgba(20,20,36,.38); color: var(--s-muted); }
+.identityDate { font-size: 11px; color: var(--s-muted); }
+
+/* One financial hero instead of repeated KPI boxes */
+.performance { display: grid; grid-template-columns: minmax(170px,1.12fr) minmax(0,1.75fr); gap: 20px; padding: 19px 22px; align-items: center; }
+.earningsHero { min-width: 0; }
+.earningsAmount { margin: 2px 0 1px; font-size: clamp(30px, 3vw, 43px); line-height: 1.06; font-weight: 820; letter-spacing: -.057em; color: #fff; font-variant-numeric: tabular-nums; }
+.earningsDescriptor { margin: 6px 0 0; color: var(--s-muted); font-size: 11px; }
+.metricGrid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0; min-width: 0; }
+.metric { padding: 8px 13px; border-left: 1px solid rgba(213,193,244,.12); min-width: 0; }
+.metricValue { margin-top: 4px; color: #f7f4ff; font-size: clamp(15px, 1.45vw, 21px); font-weight: 780; letter-spacing: -.04em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.metricDetail { margin-top: 3px; font-size: 10px; color: var(--s-muted); }
+.missing { font-size: 13px; color: #a29caf; font-weight: 600; }
+.comparisonNote { padding: 7px 11px; border-radius: 9px; background: rgba(64,45,92,.26); color: var(--s-muted); font-size: 11px; line-height: 1.45; }
+
+/* Session drivers / evidence-led insight */
+.drivers { padding: 19px 20px; }
+.driverLead { margin: 2px 0 0; font-size: 19px; line-height: 1.34; font-weight: 750; letter-spacing: -.025em; color: #fff9ff; }
+.driverExplanation { margin: 6px 0 0; color: var(--s-muted); font-size: 12px; line-height: 1.55; }
+.driverGrid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; margin-top: 13px; }
+.driverTile { padding: 12px 13px; border: 1px solid rgba(210,182,240,.105); border-radius: 12px; background: rgba(8,9,22,.36); min-width: 0; }
+.driverValue { margin-top: 4px; font-size: 16px; font-weight: 760; font-variant-numeric: tabular-nums; letter-spacing: -.035em; }
+.driverNote { margin-top: 3px; color: var(--s-muted); font-size: 11px; line-height: 1.4; }
+
+/* Secondary chart and supporting bucket details */
+.chartAndBucket { display: grid; grid-template-columns: minmax(0,1.45fr) minmax(220px,.75fr); gap: 13px; align-items: stretch; }
+.chartCard, .bucketCard { padding: 17px 17px 15px; }
+.chartHeader { display: flex; align-items: start; justify-content: space-between; gap: 9px; margin-bottom: 13px; }
+.segmented { display: inline-flex; padding: 3px; gap: 3px; border: 1px solid rgba(200,183,236,.14); border-radius: 11px; background: rgba(8,9,23,.55); }
+.segment {
+  border: 0; border-radius: 8px; min-height: 28px; padding: 4px 10px;
+  background: transparent; color: var(--s-muted); font-size: 11px; font-weight: 720;
+}
+.segmentActive { color: #ffe8f5; background: rgba(236,72,153,.2); box-shadow: inset 0 0 0 1px rgba(238,98,172,.5); }
+.chartArea { position: relative; height: clamp(150px, 17vw, 204px); min-width: 0; }
+.barRow { display: flex; gap: clamp(4px,.8vw,11px); align-items: end; height: 100%; padding: 0 3px 21px; border-bottom: 1px solid rgba(195,176,229,.16); }
+.barButton { position: relative; display: flex; flex: 1; justify-content: end; align-items: stretch; flex-direction: column; height: 100%; min-width: 0; background: none; border: 0; padding: 0; }
+.barFill { width: 100%; min-height: 3px; border-radius: 7px 7px 2px 2px; background: linear-gradient(180deg, rgba(160,116,255,.85), rgba(84,79,155,.47)); transition: filter .18s ease, box-shadow .18s ease; }
+.barFillPrivate { background: linear-gradient(180deg, #f477bd, #ae3689); border-radius: 6px 6px 0 0; }
+.barButton:hover .barFill { filter: brightness(1.24); }
+.barSelected .barFill { background: linear-gradient(180deg, #ff78bb, #9e58f2); box-shadow: 0 0 0 1px rgba(255,177,218,.48), 0 0 22px rgba(236,72,153,.28); }
+.barLabel { position: absolute; bottom: -20px; inset-inline: 0; color: var(--s-muted); text-align: center; font-size: 10px; font-weight: 700; }
+.barSelected .barLabel { color: #ffd0e8; }
+.chartFoot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 13px; color: var(--s-muted); font-size: 10px; }
+.legend { display: inline-flex; align-items: center; gap: 6px; }
+.legendDot { display: inline-block; width: 7px; height: 7px; border-radius: 2px; background: var(--s-violet); }
+.legendDotPrivate { background: var(--s-pink); }
+.bucketTop { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid rgba(195,176,229,.13); }
+.bucketTitle { font-size: 12px; font-weight: 740; }
+.bucketAmount { font-size: 24px; font-weight: 800; letter-spacing: -.045em; margin: 13px 0 6px; font-variant-numeric: tabular-nums; }
+.bucketNav { display: flex; gap: 5px; }
+.iconButton { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--s-border); border-radius: 50%; background: rgba(43,36,62,.52); color: #e8e2f2; }
+.iconButton:hover { background: rgba(81,50,91,.72); }
+.contributorList { display: grid; gap: 7px; margin-top: 12px; }
+.contributorRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 43px; padding: 9px 11px; border: 1px solid rgba(185,170,213,.11); border-radius: 11px; background: rgba(8,9,23,.46); }
+.contributorName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 700; }
+.contributorMeta { font-size: 10px; color: var(--s-muted); margin-top: 2px; }
+.contributorAmount { font-size: 12px; font-weight: 760; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.unattributed { border-style: dashed; color: var(--s-muted); }
+
+/* States: distinct empty, low-data, unknown, and warning treatment */
+.emptyState { display: grid; align-items: center; justify-items: start; gap: 10px; padding: clamp(22px,4vw,42px); min-height: 220px; }
+.emptyTitle { margin: 0; font-size: 21px; font-weight: 770; letter-spacing: -.03em; }
+.emptyBody { max-width: 50ch; margin: 0; color: var(--s-muted); font-size: 13px; line-height: 1.55; }
+.quietNote { padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(194,184,219,.11); background: rgba(15,14,28,.48); color: var(--s-muted); font-size: 11px; }
+.warning { padding: 11px 14px; border: 1px solid rgba(245,158,11,.33); background: rgba(99,56,18,.17); border-radius: 12px; color: #f4d8a4; font-size: 12px; }
+.skeleton { border-radius: 10px; background: linear-gradient(90deg, rgba(132,110,162,.11), rgba(200,167,235,.19), rgba(132,110,162,.11)); background-size: 220% 100%; animation: sShimmer 1.4s ease-in-out infinite; }
+@keyframes sShimmer { to { background-position-x: -220%; } }
+
+/* Desktop compression — the first view must contain useful content */
+@media (max-width: 1190px) {
+  .workspace { grid-template-columns: minmax(215px,.34fr) minmax(0,.66fr); gap: 12px; }
+  .pulse { grid-template-columns: 1fr minmax(170px,.75fr); }
+  .pulseAction { grid-column: 2; justify-self: start; }
+  .performance { grid-template-columns: 1fr; gap: 12px; }
+  .metric:first-child { border-left: 0; padding-left: 0; }
+  .chartAndBucket { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 840px) {
+  .page { padding: 0; }
+  .header { align-items: center; }
+  .pulse { grid-template-columns: 1fr; padding: 18px; gap: 11px; }
+  .pulseSignal { padding-left: 0; padding-top: 9px; border-left: 0; border-top: 1px solid rgba(208,187,244,.15); }
+  .pulseAction { grid-column: auto; }
+  .workspace { grid-template-columns: minmax(0,1fr); }
+  .leftRail { gap: 10px; }
+  .sessionList { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .detail { gap: 11px; }
+  .chartAndBucket { grid-template-columns: minmax(0,1fr) minmax(220px,.75fr); }
+}
+@media (max-width: 610px) {
+  .page { padding: 0; }
+  .header { gap: 8px; }
+  .pageTitle { font-size: 28px; }
+  .pageSubtitle { font-size: 11px; line-height: 1.45; }
+  .primaryAction { min-height: 36px; padding: 0 11px; }
+  .pulse { padding: 15px; min-height: auto; margin-bottom: 11px; }
+  .pulseMessage { font-size: 12px; }
+  .pulseIcon { width: 32px; height: 32px; flex-basis: 32px; }
+  .railCard { padding: 13px 11px; }
+  .sessionList { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 5px; scroll-snap-type: x proximity; overscroll-behavior-inline: contain; scrollbar-width: thin; }
+  .sessionRow { flex: 0 0 min(77vw,252px); min-height: 62px; scroll-snap-align: start; }
+  .performance { padding: 16px; gap: 13px; }
+  .earningsAmount { font-size: 35px; }
+  .metricGrid { grid-template-columns: repeat(3,minmax(0,1fr)); row-gap: 9px; }
+  .metric { padding: 6px 8px; }
+  .metric:nth-child(3n+1) { padding-left: 0; border-left: 0; }
+  .metricValue { font-size: 16px; }
+  .drivers { padding: 16px; }
+  .driverLead { font-size: 17px; }
+  .driverGrid { grid-template-columns: minmax(0,1fr); }
+  .chartAndBucket { grid-template-columns: minmax(0,1fr); }
+  .chartCard, .bucketCard { padding: 14px 12px; }
+  .chartArea { height: 165px; }
+  .identityName { font-size: 15px; }
+  .glassFeature, .glassPanel { border-radius: 17px; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+  .glassInset { -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media (max-width: 365px) {
+  .headerActions { gap: 5px; }
+  .metricGrid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .metric:nth-child(3n+1) { border-left: 1px solid rgba(213,193,244,.12); padding-left: 8px; }
+  .metric:nth-child(2n+1) { border-left: 0; padding-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page *, .page *::before, .page *::after { animation: none !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glassFeature { background: #1b152b; }
+  .glassPanel { background: #151324; }
+  .glassInset { background: #0b0d1c; }
+}
+
+/* ── Structural additions (Sessions corrective plan) ───────────────────── */
+.filterRow { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.filterSelect { min-height: 30px; padding: 3px 10px; border-radius: 9px; border: 1px solid var(--s-border); background: rgba(8,9,23,.55); color: #e9e3fb; font-size: 11px; font-weight: 680; }
+.platformIconLive { box-shadow: inset 0 1px rgba(255,255,255,.08); }
+.statusDot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--s-positive); margin-right: 6px; vertical-align: middle; }
+.statusBadge { font-size: 9.5px; font-weight: 800; letter-spacing: .08em; color: var(--s-pink-light); margin-left: 6px; }
+.comparisonLine { margin: 8px 0 0; font-size: 12px; color: #e6e1f1; line-height: 1.45; }
+.sampleChip { display: inline-flex; align-items: center; min-height: 20px; padding: 1px 8px; margin-left: 6px; border-radius: 20px; font-size: 10px; font-weight: 700; color: #F59E0B; background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.28); }
+.outcome { margin: 8px 0 0; font-size: 14px; font-weight: 760; letter-spacing: -.02em; }
+.section { padding: 17px 18px; }
+.contributorRank { width: 18px; flex-shrink: 0; color: var(--s-subtle); font-size: 11px; font-weight: 800; text-align: center; }
+.contributorButton { width: 100%; text-align: left; color: inherit; font: inherit; }
+.contributorActive { border-color: rgba(34,211,238,.55); background: rgba(34,211,238,.07); }
+.shareTrack { width: 72px; height: 3px; border-radius: 2px; background: rgba(255,255,255,.07); margin-top: 5px; margin-left: auto; }
+.shareFill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--s-violet), var(--s-pink)); }
+.barValue { position: absolute; top: -18px; inset-inline: 0; text-align: center; font-size: 10px; font-weight: 760; color: #ffd0e8; font-variant-numeric: tabular-nums; }
+.barDim { opacity: .35; }
+.barHighlight .barFill { box-shadow: 0 0 0 1px rgba(34,211,238,.55); }
+.barZero .barFill { background: rgba(148,163,184,.22); }
+.barScroll { overflow-x: auto; overflow-y: hidden; padding-top: 20px; }
+.disclosureButton { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border: 0; background: transparent; color: #e9e3fb; font-size: 13px; font-weight: 720; text-align: left; }
+.disclosureBody { padding: 0 16px 16px; }
+.overviewWrap { margin-top: 18px; }
+.tableWrap { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: 11.5px; color: var(--s-muted); font-variant-numeric: tabular-nums; }
+.table th { text-align: left; font-weight: 700; padding: 5px 6px; color: var(--s-subtle); }
+.table td { padding: 5px 6px; border-top: 1px solid rgba(195,176,229,.1); }
+@media (max-width: 610px) {
+  .disclosureButton { padding: 12px; }
+  .disclosureBody { padding: 0 12px 12px; }
+}
+
+/* Selected bar: keep the true public/private layers (legend accuracy); the
+   selection is carried by the specified rim + glow only. */
+.barSelected .barFill { background: linear-gradient(180deg, rgba(186,150,255,.98), rgba(124,92,255,.62)); }
+
+.filterScroll { display: flex; flex-wrap: nowrap; overflow-x: auto; max-width: 100%; margin-bottom: 8px; scrollbar-width: none; }
+.filterScroll::-webkit-scrollbar { display: none; }
+.filterScroll .segment { white-space: nowrap; flex-shrink: 0; }
+.contributorList > * { min-width: 0; }
+.contributorRow > :first-child { min-width: 0; }
+@media (max-width: 610px) {
+  .header { flex-wrap: wrap; }
+  .headerActions { flex-wrap: wrap; }
+}
+
+/* ── Session Pulse feature card (approved reference, 2026-11-05) ─────────────
+ * Command Center navy glass (CommandCenter.js glassCard: rgba(15,20,32,.75),
+ * blur 20px) with the CamCash brand gradient (#22D3EE → #7C5CFF → #EC4899) as
+ * an illuminated border. Insight left (~65%) | signal area right (~35%).
+ * Scoped to this module; the earlier .pulse* rules above are left unchanged. */
+.pulseCard {
+  position: relative; isolation: isolate; min-width: 0;
+  display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
+  align-items: center; gap: 0;
+  margin-bottom: 16px; padding: 24px 28px 26px;
+  border-radius: 22px;
+  background:
+    radial-gradient(ellipse 60% 90% at 78% -10%, rgba(236,72,153,.24), transparent 62%),
+    radial-gradient(ellipse 55% 80% at 0% 110%, rgba(34,211,238,.10), transparent 60%),
+    radial-gradient(ellipse 50% 70% at 35% 0%, rgba(124,92,255,.12), transparent 60%),
+    linear-gradient(120deg, rgba(13,17,38,.94), rgba(17,15,40,.9) 55%, rgba(30,16,46,.9));
+  -webkit-backdrop-filter: blur(20px) saturate(130%); backdrop-filter: blur(20px) saturate(130%);
+  box-shadow: 0 0 46px rgba(236,72,153,.20), 0 0 32px rgba(34,211,238,.10), 0 24px 64px rgba(1,0,8,.38), inset 0 1px rgba(255,255,255,.09);
+}
+.pulseCard::before { /* illuminated gradient border */
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  border-radius: inherit; padding: 1.5px;
+  background: linear-gradient(105deg, rgba(34,211,238,.85) 0%, rgba(124,92,255,.55) 32%, rgba(236,72,153,.75) 62%, rgba(255,120,200,.95) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.pulseCard::after { /* inner glass reflection along the top edge */
+  content: ''; position: absolute; left: 12%; right: 12%; top: 0; height: 1px; z-index: -1; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255,214,240,.85), transparent);
+}
+.pulseInsight { min-width: 0; padding-right: 30px; }
+.pulseEyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; color: #e8e4f4; font-size: 13.5px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; }
+.pulseWave { flex: 0 0 auto; filter: drop-shadow(0 0 6px rgba(236,72,153,.45)); }
+.pulseHeadline { margin: 0 0 8px; color: #fff; font-size: clamp(24px, 2.35vw, 34px); font-weight: 800; line-height: 1.12; letter-spacing: -.03em; }
+.pulseAmount { color: #f055b0; text-shadow: 0 0 22px rgba(236,72,153,.38); white-space: nowrap; }
+.pulseSentence { margin: 0; max-width: 60ch; color: #c9c5d8; font-size: 15.5px; font-weight: 500; line-height: 1.45; }
+.pulseActions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 18px; }
+.pulseCard .pulsePrimary { /* .pulseCard prefix outranks .page button { font: inherit } */
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 44px; padding: 0 30px; border-radius: 13px;
+  color: #fff; font-size: 15px; font-weight: 780; text-transform: capitalize;
+  background: linear-gradient(90deg, #22D3EE 0%, #7C5CFF 52%, #EC4899 100%);
+  border: 1px solid rgba(255,214,240,.35);
+  box-shadow: 0 0 22px rgba(34,211,238,.22), 0 6px 24px rgba(236,72,153,.28), inset 0 1px rgba(255,255,255,.25);
+  transition: transform .18s var(--s-ease), filter .18s var(--s-ease);
+}
+.pulseCard .pulsePrimary:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.pulseCard .pulseSecondary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  min-height: 44px; padding: 0 22px; border-radius: 13px;
+  color: #f4f0ff; font-size: 14.5px; font-weight: 720; text-transform: capitalize;
+  background: rgba(23,18,44,.66); border: 1px solid rgba(236,72,153,.45);
+  box-shadow: inset 0 1px rgba(255,255,255,.05);
+  transition: background .18s ease, border-color .18s ease;
+}
+.pulseCard .pulseSecondary:hover { background: rgba(52,30,76,.72); border-color: rgba(236,72,153,.7); }
+.pulseSide { min-width: 0; align-self: stretch; display: flex; flex-direction: column; justify-content: center; gap: 18px; padding-left: 30px; border-left: 1px solid rgba(208,187,244,.16); }
+.pulseSideTop { display: flex; align-items: flex-start; gap: 14px; padding-bottom: 18px; border-bottom: 1px solid rgba(208,187,244,.14); }
+.pulseCam { flex: 0 0 auto; display: grid; place-items: center; margin-top: 4px; filter: drop-shadow(0 0 10px rgba(167,139,250,.35)); }
+.pulseIdentity { min-width: 0; flex: 1 1 auto; }
+.pulseSideLabel { color: #d9d4e8; font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.pulsePlatform { margin-top: 4px; color: #fff; font-size: 17px; font-weight: 780; overflow-wrap: anywhere; }
+.pulseMeta { margin-top: 2px; color: #b9b4c9; font-size: 14px; }
+.pulseBadge {
+  flex: 0 0 auto; padding: 10px 16px; border-radius: 16px; text-align: center;
+  background: rgba(10,16,32,.62); border: 1px solid rgba(255,255,255,.12);
+  box-shadow: inset 0 1px rgba(255,255,255,.06);
+}
+.pulseBadgeValue { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 22px; font-weight: 800; line-height: 1.1; letter-spacing: -.02em; white-space: nowrap; }
+.pulseBadgeLabel { margin-top: 3px; color: #c9c5d8; font-size: 13px; white-space: nowrap; }
+.pulseBadge_up .pulseBadgeValue { color: #34E3B0; text-shadow: 0 0 14px rgba(16,185,129,.35); }
+.pulseBadge_up { border-color: rgba(16,185,129,.30); }
+.pulseBadge_down .pulseBadgeValue { color: var(--s-negative); }
+.pulseBadge_neutral .pulseBadgeValue { color: #f4f0ff; font-size: 18px; }
+.pulseBadge_live .pulseBadgeValue { color: #34E3B0; font-size: 15px; letter-spacing: .08em; }
+.pulseBadge_live { border-color: rgba(16,185,129,.35); }
+.pulseLiveDot { width: 8px; height: 8px; border-radius: 50%; background: #10B981; box-shadow: 0 0 10px #10B981; }
+.pulseStats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pulseStat { min-width: 0; padding: 0 14px; border-left: 1px solid rgba(208,187,244,.16); }
+.pulseStat:first-child { padding-left: 0; border-left: 0; }
+.pulseStatValue { color: #fff; font-size: 24px; font-weight: 800; line-height: 1.15; white-space: nowrap; }
+.pulseStatLabel { margin-top: 3px; color: #b9b4c9; font-size: 13.5px; white-space: nowrap; }
+
+@media (max-width: 1190px) {
+  .pulseCard { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); padding: 20px 22px; }
+  .pulseInsight { padding-right: 22px; }
+  .pulseSide { padding-left: 22px; gap: 14px; }
+  .pulseSideTop { padding-bottom: 14px; }
+  .pulseSentence { font-size: 14px; }
+  .pulseStatValue { font-size: 20px; }
+  .pulseStatLabel { font-size: 12px; }
+  .pulseBadge { padding: 8px 12px; }
+  .pulseBadgeValue { font-size: 18px; }
+  .pulseBadgeLabel { font-size: 11.5px; }
+}
+@media (max-width: 840px) {
+  .pulseCard { grid-template-columns: minmax(0, 1fr); padding: 18px; }
+  .pulseInsight { padding-right: 0; }
+  .pulseSide { padding-left: 0; padding-top: 16px; margin-top: 16px; border-left: 0; border-top: 1px solid rgba(208,187,244,.16); }
+}
+@media (max-width: 610px) {
+  .pulseCard { padding: 16px 15px; margin-bottom: 11px; border-radius: 17px; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+  .pulseEyebrow { font-size: 11.5px; margin-bottom: 9px; }
+  .pulseWave { width: 28px; height: 20px; }
+  .pulseHeadline { font-size: 22px; }
+  .pulseSentence { font-size: 13px; }
+  .pulseActions { gap: 9px; margin-top: 14px; }
+  .pulseCard .pulsePrimary, .pulseCard .pulseSecondary { flex: 1 1 140px; min-height: 44px; padding: 0 14px; font-size: 13.5px; }
+  .pulseSide { gap: 12px; padding-top: 13px; margin-top: 14px; }
+  .pulseSideTop { gap: 11px; padding-bottom: 12px; }
+  .pulseCam svg { width: 28px; height: 22px; }
+  .pulsePlatform { font-size: 15px; }
+  .pulseMeta { font-size: 12.5px; }
+  .pulseBadge { padding: 7px 10px; border-radius: 13px; }
+  .pulseBadgeValue { font-size: 16px; }
+  .pulseBadgeLabel { font-size: 11px; }
+  .pulseStat { padding: 0 10px; }
+  .pulseStatValue { font-size: 18px; }
+  .pulseStatLabel { font-size: 11.5px; }
+}

@@ -40,16 +40,10 @@ const renderTab = (props = {}) => render(<SessionsOverview tips={[]} shows={[]} 
 
 test('hero: total = public + private, live-linked tips counted once, 8 cells', () => {
   renderTab({ tips: [...liveTips, ...freeChat], shows: [show] })
-  expect(val('today-total')).toBe('$21.16')
-  expect(val('today-public')).toBe('$20.50')
-  expect(val('today-private')).toBe('$0.66')
-  expect(val('today-tips')).toBe('5')
-  expect(val('today-unique')).toBe('5')
-  expect(val('today-streamed')).toContain('1h 0m') // exact Live minutes only
-  expect(val('today-streamed')).not.toContain('~')
-  expect(val('today-private-time')).toBe('2m')
-  expect(val('today-completed')).toBe('2')
-  expect(val('today-best-platform')).toBe('BongaCams')
+  // Hero totals (Today tiles) were removed with the hero; the Pulse card replaces them.
+  expect(screen.queryByTestId('today-total')).toBeNull()
+  expect(screen.queryByTestId('today-streamed')).toBeNull()
+  expect(screen.getByTestId('session-pulse')).toBeTruthy()
 })
 
 test('three equal platform cards with share and BEST TODAY on the real leader', () => {
@@ -109,9 +103,11 @@ test('type filters', () => {
 test('7 Days range widens the same formulas', () => {
   const older = [{ id: 9, date_time: '2026-10-03T12:00:00Z', platform: 'chaturbate', username: 'Zed', usd: 9, tokens: 180, live_session_id: null, source: null }]
   renderTab({ tips: [...freeChat, ...older] })
-  expect(val('today-total')).toBe('$10.00')
-  click('range-7')
-  expect(val('today-total')).toBe('$19.00')
+  // The hero Today totals are no longer rendered; the Session Pulse card replaces them.
+  // The range control itself is still on the page (it is not part of the hero).
+  expect(screen.getByTestId('range-7')).toBeTruthy()
+  expect(screen.queryByTestId('today-total')).toBeNull()
+  expect(screen.getByTestId('session-pulse')).toBeTruthy()
 })
 
 test('empty account: activation state, no grid of zeros', () => {
@@ -133,8 +129,8 @@ test('imported private charges are one PRIVATE session and count as private', ()
   ] })
   expect(screen.getAllByTestId(/^history-private:/)).toHaveLength(1)
   // imported-only data → Overall Performance hero
-  expect(val('overall-private')).toBe('$0.76')
-  expect(val('overall-public')).toBe('$0.00')
+  expect(screen.queryByTestId('overall-private')).toBeNull() // Overall hero removed
+  expect(screen.getByTestId('session-pulse')).toBeTruthy()
   expect(val('details-tips')).toBe('2 charges')
 })
 
@@ -145,7 +141,9 @@ test('LIVE NOW: running show leads the list and the hero chip shows it', () => {
     { id: 10, date_time: '2026-10-07T19:31:00Z', platform: 'bongacams', username: 'Gus', usd: 5, tokens: 200, live_session_id: 'run-1', source: 'extension' },
   ]
   renderTab({ tips: [...liveTips, ...runTips], shows: [show], live: { session, privateInterval: null } })
-  expect(val('hero-live')).toContain('LIVE NOW · 42m')
+  // The hero live chip was removed; the Pulse card shows the running show.
+  expect(screen.queryByTestId('hero-live')).toBeNull()
+  expect(screen.getByTestId('session-pulse').getAttribute('data-kind')).toBe('live_now')
   expect(screen.getAllByTestId(/^history-/)[0].getAttribute('data-testid')).toBe('history-running:run-1')
   expect(val('details-total')).toBe('$25.00')
   expect(val('details-unique')).toBe('2') // Gus on two platforms = two fans
@@ -154,7 +152,7 @@ test('LIVE NOW: running show leads the list and the hero chip shows it', () => {
 test('vs-yesterday comparison only with real yesterday data', () => {
   const y = [{ id: 11, date_time: '2026-10-06T11:00:00Z', platform: 'bongacams', username: 'Y', usd: 8, tokens: 320, live_session_id: null, source: null }]
   renderTab({ tips: [...freeChat, ...y] })
-  expect(val('today-comparison')).toContain('25%') // $10 today vs $8 yesterday by 20:00
+  expect(screen.queryByTestId('today-comparison')).toBeNull() // Today hero removed
 })
 
 test('strongest signal from real shares', () => {
@@ -178,15 +176,10 @@ test('CSV-only: Overall Performance hero, no Today/range controls, no stream tim
   expect(screen.queryByTestId('today-stats')).toBeNull()
   expect(screen.queryByTestId('scope-switch')).toBeNull()
   expect(screen.queryByTestId('range-1')).toBeNull()
-  expect(val('overall-source')).toBe('IMPORTED HISTORY')
-  expect(val('overall-total')).toBe('$55.00')
-  expect(val('overall-public')).toBe('$55.00')
-  expect(val('overall-tips')).toBe('7')
-  expect(val('overall-unique')).toBe('4')
-  expect(val('overall-meaningful')).toBe('3')
-  expect(val('overall-median')).toBe('$15.00') // sessions 15, 24, 15
-  expect(val('overall-top-tipper')).toBe('Ann')
-  expect(val('overall-largest')).toBe('$20.00')
+  // Overall hero removed from the page; the Session Pulse card replaces it.
+  expect(screen.queryByTestId('overall-source')).toBeNull()
+  expect(screen.queryByTestId('overall-total')).toBeNull()
+  expect(screen.getByTestId('session-pulse')).toBeTruthy()
   expect(container.textContent).not.toMatch(/\/hr|per hour|Streamed Time|Best Day|Best Time/i)
   expect(screen.getAllByTestId(/^history-tips:/)).toHaveLength(3)
   expect(container.textContent).toMatch(/Est\. span/)
@@ -206,14 +199,11 @@ test('single platform: Session Performance cards replace platform comparison', (
 
 test('mixed Live + CSV: Today is default, Overall switch shows overall history', () => {
   renderTab({ tips: [...liveTips, ...freeChat, ...csvTips], shows: [show] })
-  expect(screen.getByTestId('scope-switch')).toBeTruthy()
-  expect(screen.getByTestId('today-stats')).toBeTruthy()
-  expect(screen.getByTestId('today-by-platform')).toBeTruthy() // 3 platforms today
+  // Scope switch and Today/Overall hero were removed; the Pulse card replaces them.
+  expect(screen.getByTestId('scope-switch')).toBeTruthy() // page control, still rendered
+  expect(screen.queryByTestId('today-stats')).toBeNull()
+  expect(screen.getByTestId('session-pulse')).toBeTruthy()
   click('scope-overall')
-  expect(val('overall-source')).toBe('LIVE + IMPORTED HISTORY')
-  expect(val('overall-public')).toBe('$75.50') // 10.5 live + 10 free chat + 55 csv
-  expect(val('overall-private')).toBe('$0.66')
-  expect(val('overall-total')).toBe('$76.16')
   expect(screen.getByTestId('session-performance')).toBeTruthy()
   expect(screen.queryByTestId('range-1')).toBeNull()
 })
@@ -226,10 +216,11 @@ test('no data: no scope switch or range controls', () => {
 
 test('Free history note follows the primary platform', () => {
   const { unmount } = renderTab({ tips: csvTips, isPro: false, primaryPlatform: null })
-  expect(val('overall-history-note')).toMatch(/last 31 days on every platform/)
+  // The hero history note was removed with the hero.
+  expect(screen.queryByTestId('overall-history-note')).toBeNull()
   unmount()
   renderTab({ tips: csvTips, isPro: false, primaryPlatform: 'Chaturbate' })
-  expect(val('overall-history-note')).toMatch(/full history on Chaturbate/)
+  expect(screen.queryByTestId('overall-history-note')).toBeNull()
 })
 
 // ── UI polish (no numeric change) ────────────────────────────────────────────
@@ -254,11 +245,9 @@ test('no data: never signals live activity', () => {
 test('light data: real numbers kept, empty cells become guidance', () => {
   // one free-chat session today (2 tips, 45 min): fewer than 3 meaningful sessions
   renderTab({ tips: freeChat })
-  expect(val('today-total')).toBe('$10.00')
-  expect(val('today-tips')).toBe('2')
-  expect(screen.getByTestId('today-private').getAttribute('data-hint')).toBe('1')
-  expect(val('today-private')).toMatch(/No private earnings yet/)
-  expect(screen.getByTestId('today-private-time').getAttribute('data-hint')).toBe('1')
+  // Today hero removed; the Pulse card replaces it.
+  expect(screen.queryByTestId('today-total')).toBeNull()
+  expect(screen.getByTestId('session-pulse')).toBeTruthy()
   expect(screen.getByTestId('perf-typical').textContent).toMatch(/2 more sessions needed for Typical Session/)
   expect(screen.getByTestId('perf-momentum').textContent).toMatch(/5 more sessions needed for Recent Momentum/)
 })
@@ -273,7 +262,8 @@ test('platform cards only for platforms with data', () => {
 
 test('money values never wrap', () => {
   renderTab({ tips: csvTips })
-  expect(screen.getByTestId('overall-public').style.whiteSpace).toBe('nowrap')
+  // Overall hero removed; the Pulse amount uses the shared money class (no-wrap styling).
+  expect(screen.getByTestId('pulse-amount').className).toMatch(/money/)
 })
 
 // ── Session Details tabs: Timeline buckets and Fans ──────────────────────────

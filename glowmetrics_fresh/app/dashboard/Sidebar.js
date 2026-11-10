@@ -3,6 +3,7 @@ import { useState } from "react"
 import Button from "../../components/ui/Button"
 import TimezoneSelect from "../../components/TimezoneSelect"
 import { timeZoneLabel } from "../../lib/creatorTimezone"
+import { track } from "../../lib/track"
 
 const C = {
   bg: "#05070f", card: "#0d1322", border: "#1e2d45",
@@ -168,12 +169,12 @@ export default function Sidebar({ activeTab, onTabChange, user, onSignOut, isPro
 
       {/* Upgrade CTA — always visible, but the Pro state stays low-key since it's a status, not a call to action */}
       {isPro ? (
-        <button onClick={() => onTabChange('subscription')} style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 10px", borderRadius: 9, background: "rgba(168,85,247,0.07)", border: "1px solid rgba(168,85,247,0.2)", marginBottom: 8, fontSize: 11.5, fontWeight: 700, color: C.purple, cursor: "pointer", width: "100%", transition: "all 0.15s" }} onMouseEnter={e => { e.currentTarget.style.background = "rgba(168,85,247,0.14)"; e.currentTarget.style.borderColor = "rgba(168,85,247,0.4)" }} onMouseLeave={e => { e.currentTarget.style.background = "rgba(168,85,247,0.07)"; e.currentTarget.style.borderColor = "rgba(168,85,247,0.2)" }}>
+        <button data-testid="subscription-badge" onClick={() => { track('subscription_badge_clicked', { plan_state: 'pro_active' }); onTabChange('subscription') }} style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 10px", borderRadius: 9, background: "rgba(168,85,247,0.07)", border: "1px solid rgba(168,85,247,0.2)", marginBottom: 8, fontSize: 11.5, fontWeight: 700, color: C.purple, cursor: "pointer", width: "100%", transition: "all 0.15s" }} onMouseEnter={e => { e.currentTarget.style.background = "rgba(168,85,247,0.14)"; e.currentTarget.style.borderColor = "rgba(168,85,247,0.4)" }} onMouseLeave={e => { e.currentTarget.style.background = "rgba(168,85,247,0.07)"; e.currentTarget.style.borderColor = "rgba(168,85,247,0.2)" }}>
           <span>✦</span>
           <span>Pro plan active</span>
         </button>
       ) : (
-        <Button as="a" href="/pricing" style={{ width: "100%", marginBottom: 8, fontSize: 13, padding: "11px 12px", textAlign: "center" }}>
+        <Button as="a" href="/pricing" data-testid="sidebar-upgrade" onClick={() => track('upgrade_to_pro_clicked', { source: 'sidebar' })} style={{ width: "100%", marginBottom: 8, fontSize: 13, padding: "11px 12px", textAlign: "center" }}>
           ✦ Upgrade to Pro
         </Button>
       )}

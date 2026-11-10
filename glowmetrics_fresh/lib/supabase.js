@@ -8,6 +8,25 @@ import { createBrowserClient } from '@supabase/ssr'
 
 let supabaseInstance = null
 
+// True while the app itself is running auth.signOut() (Sign out buttons, the
+// stale-token cleanup below). auth-js notifies SIGNED_OUT listeners before
+// signOut() resolves, so the listener can tell a sign-out the app asked for
+// from auth-js discarding a dead session after a rejected token refresh.
+let signOutRequested = false
+let redirectingToLanding = false
+
+const isProtectedPath = () =>
+  window.location.pathname.startsWith('/dashboard') ||
+  window.location.pathname.startsWith('/live')
+
+// Pages that need a signed-in user cannot load data with a dead session
+// (tips/profiles reads return 401), so send them to /landing, once.
+const leaveProtectedPage = () => {
+  if (redirectingToLanding || !isProtectedPath()) return
+  redirectingToLanding = true
+  window.location.href = '/landing'
+}
+
 const initSupabase = () => {
   if (typeof window === 'undefined') {
     return null
@@ -25,6 +44,16 @@ const initSupabase = () => {
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     )
+    const auth = supabaseInstance.auth
+    const originalSignOut = auth.signOut.bind(auth)
+    auth.signOut = async (...args) => {
+      signOutRequested = true
+      try {
+        return await originalSignOut(...args)
+      } finally {
+        signOutRequested = false
+      }
+    }
   } catch (err) {
     console.error('Supabase initialization failed:', err.message)
   }
@@ -54,15 +83,18 @@ export const supabase = new Proxy(createStubClient(), {
 if (typeof window !== 'undefined') {
   const instance = initSupabase()
   instance?.auth?.onAuthStateChange?.((event, session) => {
-    if (event === 'SIGNED_OUT') return
+    if (event === 'SIGNED_OUT') {
+      // A sign-out the app asked for: the caller handles navigation itself.
+      if (signOutRequested) return
+      // Otherwise auth-js removed the session because the refresh token was
+      // rejected (refresh_token_not_found) or another tab signed out. Without
+      // this, the dashboard stayed open retrying with a dead session.
+      leaveProtectedPage()
+      return
+    }
     if (!session && event !== 'INITIAL_SESSION') {
       // Session gone but not by choice — clear stale tokens
-      instance.auth.signOut().then(() => {
-        if (window.location.pathname.startsWith('/dashboard') ||
-            window.location.pathname.startsWith('/live')) {
-          window.location.href = '/landing'
-        }
-      })
+      instance.auth.signOut().then(leaveProtectedPage)
     }
   })
 }

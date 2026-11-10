@@ -9,7 +9,7 @@ jest.mock('next/server', () => ({
 
 const mockStripe = {
   prices: { retrieve: jest.fn(), list: jest.fn() },
-  customers: { create: jest.fn() },
+  customers: { create: jest.fn(), retrieve: jest.fn(async (id) => ({ id })) },
   checkout: { sessions: { create: jest.fn() } },
 }
 jest.mock('../../../../../lib/stripe', () => ({ stripe: mockStripe }))

@@ -1,64 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { sendEmail, getUserEmail, formatTrialDate, SITE_URL, SUPPORT_EMAIL } from '../../../../lib/email/sendEmail'
 
 export const dynamic = 'force-dynamic'
-
-async function logEmail(supabase, emailType, recipient, subject, status, resendResponse, errorMessage) {
-  try {
-    await supabase.from('email_logs').insert({
-      email_type: emailType,
-      recipient,
-      subject,
-      status,
-      resend_response: resendResponse,
-      error_message: errorMessage,
-    })
-  } catch (err) {
-    console.error('[logEmail] Failed to log email:', err.message)
-  }
-}
-
-async function sendEmail(supabase, emailType, recipient, subject, text) {
-  if (!process.env.RESEND_API_KEY) {
-    console.error('[sendEmail] RESEND_API_KEY not set')
-    await logEmail(supabase, emailType, recipient, subject, 'failed', null, 'Missing RESEND_API_KEY')
-    return false
-  }
-
-  try {
-    await logEmail(supabase, emailType, recipient, subject, 'pending', null, null)
-
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'GlowMetrics <noreply@camcashgrl.com>',
-        to: recipient,
-        subject,
-        text,
-      }),
-    })
-
-    const resendResponse = await response.json()
-
-    if (response.ok && resendResponse.id) {
-      await logEmail(supabase, emailType, recipient, subject, 'sent', resendResponse, null)
-      console.log(`[sendEmail] Email sent to ${recipient}: ${resendResponse.id}`)
-      return true
-    } else {
-      await logEmail(supabase, emailType, recipient, subject, 'failed', resendResponse, resendResponse.message || 'Unknown error')
-      console.error(`[sendEmail] Resend API error: ${resendResponse.message}`)
-      return false
-    }
-  } catch (e) {
-    await logEmail(supabase, emailType, recipient, subject, 'failed', null, e.message)
-    console.error(`[sendEmail] Exception: ${e.message}`)
-    return false
-  }
-}
 
 export async function GET() {
   const supabase = createClient(
@@ -74,7 +18,7 @@ export async function GET() {
   // Get users whose trials expire in exactly 1 day
   const { data: trialsExpiring1Day, error } = await supabase
     .from('profiles')
-    .select('id, email, plan, trial_ends_at')
+    .select('id, plan, trial_ends_at')
     .gte('trial_ends_at', oneDayStart.toISOString())
     .lt('trial_ends_at', oneDayEnd.toISOString())
     .eq('subscription_status', 'trialing')
@@ -89,22 +33,24 @@ export async function GET() {
 
   if (trialsExpiring1Day?.length) {
     for (const user of trialsExpiring1Day) {
-      const expiryDate = new Date(user.trial_ends_at).toLocaleDateString()
-      const subject = '🚨 Last chance! Your GlowMetrics trial expires tomorrow'
-      const text = `Hi ${user.email},
+      const email = await getUserEmail(supabase, user.id)
+      if (!email) { emailsFailed++; continue }
+      const endDate = formatTrialDate(user.trial_ends_at)
+      const subject = 'Your CamCash Pro trial ends tomorrow'
+      const text = `Hi there,
 
-Your GlowMetrics trial expires TOMORROW (${expiryDate}). This is your last chance to upgrade!
+A quick reminder: your CamCash Pro free trial ends tomorrow, ${endDate}.
 
-Complete your upgrade now to maintain uninterrupted access to your analytics.
+Your Pro subscription will then start automatically and the card you added at checkout will be charged for the plan you chose, so you keep full history, every platform, Stream Planner and Money Map without interruption.
 
-Upgrade here: https://glowmetrics.co/upgrade
+If you'd rather not continue, cancel before ${endDate} from your CamCash dashboard (Subscription) and you won't be charged:
+${SITE_URL}/dashboard?tab=subscription
 
-Any questions? Contact support@glowmetrics.co or reply to this email.
+Questions? Email us at ${SUPPORT_EMAIL}
 
-Best,
-GlowMetrics Team`
+The CamCash Team`
 
-      const sent = await sendEmail(supabase, 'trial_expiry_1day', user.email, subject, text)
+      const sent = await sendEmail(supabase, 'trial_expiry_1day', email, subject, text)
       if (sent) emailsSent++
       else emailsFailed++
     }

@@ -26,6 +26,25 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No subscription found' }, { status: 404 })
     }
 
+    // A stored customer can be stale (deleted in Stripe, or from another
+    // Stripe key/mode). Stripe would reject the portal with a raw
+    // "No such customer" error. Treat a confirmed deleted/missing customer as
+    // "no subscription"; checkout replaces the stale id on the next upgrade.
+    // Other errors (network, rate limit) fall through unchanged.
+    const NO_SUB = { error: 'No active subscription found. Choose a plan on the Pricing page to subscribe.' }
+    try {
+      const existing = await stripe.customers.retrieve(profile.stripe_customer_id)
+      if (existing?.deleted) {
+        console.warn('Portal: stored Stripe customer is deleted', profile.stripe_customer_id)
+        return NextResponse.json(NO_SUB, { status: 404 })
+      }
+    } catch (err) {
+      if (err?.code === 'resource_missing' || err?.statusCode === 404) {
+        console.warn('Portal: stored Stripe customer not found', profile.stripe_customer_id)
+        return NextResponse.json(NO_SUB, { status: 404 })
+      }
+    }
+
     const session = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
       return_url: `${request.headers.get('origin')}/dashboard`,

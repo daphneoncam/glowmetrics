@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/react'
 import Script from 'next/script'
 import { interClassName } from './fonts/inter'
 import FeedbackWidgetGate from './components/FeedbackWidgetGate'
+import AnalyticsInit from './components/AnalyticsInit'
 
 // Inter is self-hosted in ./fonts/inter.js: the same files, weights (400–900),
 // unicode ranges, display: swap and Latin preload that next/font/google produced.
@@ -162,6 +163,7 @@ export default function RootLayout({ children }) {
         {children}
         <FeedbackWidgetGate />
         <Analytics />
+        <AnalyticsInit />
 
         {/* X (Twitter) Conversion Tracking Pixel */}
         <Script

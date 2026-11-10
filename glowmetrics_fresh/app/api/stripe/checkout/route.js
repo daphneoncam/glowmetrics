@@ -61,9 +61,26 @@ export async function POST(request) {
       console.error('Checkout: failed to read profile', profileError.message)
     }
 
+    // A stored customer can be stale: deleted in the Stripe dashboard, or
+    // created under a different Stripe key/mode. Stripe then rejects checkout
+    // with "No such customer", blocking the upgrade. Verify it first; only a
+    // confirmed deleted/missing customer is replaced. Any other error (network,
+    // rate limit) keeps the stored id so behaviour is unchanged.
     if (profile?.stripe_customer_id) {
-      customerId = profile.stripe_customer_id
-    } else {
+      try {
+        const existing = await stripe.customers.retrieve(profile.stripe_customer_id)
+        if (existing && !existing.deleted) customerId = profile.stripe_customer_id
+        else console.warn('Checkout: stored Stripe customer is deleted; creating a new one', profile.stripe_customer_id)
+      } catch (err) {
+        if (err?.code === 'resource_missing' || err?.statusCode === 404) {
+          console.warn('Checkout: stored Stripe customer not found; creating a new one', profile.stripe_customer_id)
+        } else {
+          customerId = profile.stripe_customer_id
+        }
+      }
+    }
+
+    if (!customerId) {
       const customer = await stripe.customers.create({
         email: user.email,
         metadata: { userId: user.id }

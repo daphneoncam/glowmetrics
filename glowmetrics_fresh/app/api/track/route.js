@@ -3,6 +3,25 @@ import { createSupabaseRouteClient } from '../../../lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
+// click_events, engagement_events and user_sessions have no INSERT policy for
+// browser roles (RLS), so writes from the anon/user client were rejected and
+// those tables stayed empty. They are written with the service role instead.
+// user_id always comes from the verified session above, never from the
+// request body, so a caller cannot write rows as another user.
+let adminClient = null;
+function getAdmin() {
+  if (adminClient) return adminClient;
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return null;
+  adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  return adminClient;
+}
+
+// Bound free-text fields so a client cannot write oversized rows.
+const str = (v, max = 300) => (typeof v === 'string' ? v.substring(0, max) : v == null ? null : String(v).substring(0, max));
+const int = (v) => (Number.isFinite(Number(v)) ? Math.round(Number(v)) : null);
+
 export async function POST(request) {
   try {
     const supabase = createSupabaseRouteClient();
@@ -27,40 +46,42 @@ export async function POST(request) {
     const eventName = eventNameCamel || event_name;
 
     // Route to appropriate tracking table based on event type
+    const writer = getAdmin() || supabase;
+
     if (eventType === 'click') {
-      result = await supabase.from('click_events').insert({
+      result = await writer.from('click_events').insert({
         user_id: userId,
-        page_path: pageUrlToUse,
-        element_type: properties.elementType,
-        element_id: properties.elementId,
-        element_class: properties.elementClass,
-        element_selector: properties.elementSelector,
-        button_text: properties.buttonText,
-        link_href: properties.linkHref,
-        section_name: properties.sectionName,
-        cta_name: properties.ctaName,
-        click_x: properties.clickX,
-        click_y: properties.clickY,
-        viewport_width: properties.viewportWidth,
-        viewport_height: properties.viewportHeight,
-        device_type: properties.deviceType,
-        session_id: properties.sessionId || session_id,
-        properties,
+        page_path: str(pageUrlToUse, 500) || 'unknown',
+        element_type: str(properties.elementType, 40),
+        element_id: str(properties.elementId, 200),
+        element_class: str(properties.elementClass, 200),
+        element_selector: str(properties.elementSelector, 200),
+        button_text: str(properties.buttonText, 100),
+        link_href: str(properties.linkHref, 500),
+        section_name: str(properties.sectionName, 100),
+        cta_name: str(properties.ctaName, 100),
+        click_x: int(properties.clickX),
+        click_y: int(properties.clickY),
+        viewport_width: int(properties.viewportWidth),
+        viewport_height: int(properties.viewportHeight),
+        device_type: str(properties.deviceType, 20),
+        session_id: str(properties.sessionId || session_id, 100),
+        properties: {},
       });
     } else if (eventType === 'engagement') {
-      result = await supabase.from('engagement_events').insert({
+      result = await writer.from('engagement_events').insert({
         user_id: userId,
-        page_path: pageUrlToUse,
-        page_title: properties.pageTitle,
-        session_id: properties.sessionId || session_id,
-        event_type: properties.engagementType,
-        scroll_depth_percent: properties.scrollDepthPercent,
-        time_on_page_seconds: properties.timeOnPageSeconds,
-        element_selector: properties.elementSelector,
-        referrer,
-        device_type: properties.deviceType,
-        browser: properties.browser,
-        os: properties.os,
+        page_path: str(pageUrlToUse, 500) || 'unknown',
+        page_title: str(properties.pageTitle, 200),
+        session_id: str(properties.sessionId || session_id, 100),
+        event_type: str(properties.engagementType, 40) || 'unknown',
+        scroll_depth_percent: int(properties.scrollDepthPercent),
+        time_on_page_seconds: int(properties.timeOnPageSeconds),
+        element_selector: str(properties.elementSelector, 200),
+        referrer: str(referrer, 500),
+        device_type: str(properties.deviceType, 20),
+        browser: str(properties.browser, 40),
+        os: str(properties.os, 40),
       });
     } else if (eventType === 'error') {
       result = await supabase.from('error_events').insert({
@@ -144,19 +165,20 @@ export async function POST(request) {
         recorded_at: properties.recordedAt,
       });
     } else if (eventType === 'session') {
-      result = await supabase.from('user_sessions').insert({
+      result = await writer.from('user_sessions').insert({
         user_id: userId,
-        session_id: properties.sessionId || session_id,
-        device_type: properties.deviceType,
-        browser: properties.browser,
-        os: properties.os,
-        country: properties.country,
-        referrer,
-        utm_source: properties.utmSource,
-        utm_medium: properties.utmMedium,
-        utm_campaign: properties.utmCampaign,
-        utm_content: properties.utmContent,
-        utm_term: properties.utmTerm,
+        session_id: str(properties.sessionId || session_id, 100) || 'unknown',
+        device_type: str(properties.deviceType, 20),
+        browser: str(properties.browser, 40),
+        os: str(properties.os, 40),
+        country: str(properties.country, 100),
+        referrer: str(referrer, 500),
+        utm_source: str(properties.utmSource, 200),
+        utm_medium: str(properties.utmMedium, 200),
+        utm_campaign: str(properties.utmCampaign, 200),
+        utm_content: str(properties.utmContent, 200),
+        utm_term: str(properties.utmTerm, 200),
+        started_at: new Date().toISOString(),
       });
     } else {
       // Legacy: fall back to analytics_events
