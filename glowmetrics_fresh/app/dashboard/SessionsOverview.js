@@ -412,10 +412,11 @@ function SessionRow({ e, selected, onSelect, vs, plan }) {
         </span>
         <span style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px 8px", marginTop: 5 }}>
           <Badge text={status.label} color={status.color} testId={`type-badge-${e.type}`} />
-          {/* secondary: how many tips / charges (kept small; existing count, not a new metric) */}
+          {/* secondary count (existing values). Private / group / spy billing records are
+              payments the creator received, not tips, so they read "Payment(s)". */}
           <span data-testid="row-count" style={{ fontSize: 11, color: C.text, whiteSpace: "nowrap" }}>
             <span style={{ color: C.white, fontWeight: 700 }}>{e.type === "private" ? e.chargeCount : e.tipCount}</span>
-            <span style={{ marginLeft: 3 }}>{e.type === "private" ? (e.chargeCount === 1 ? "Charge" : "Charges") : (e.tipCount === 1 ? "Tip" : "Tips")}</span>
+            <span style={{ marginLeft: 3 }}>{e.type === "private" ? (e.chargeCount === 1 ? "Payment" : "Payments") : (e.tipCount === 1 ? "Tip" : "Tips")}</span>
           </span>
         </span>
       </span>

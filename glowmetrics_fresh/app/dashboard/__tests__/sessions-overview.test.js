@@ -234,7 +234,15 @@ test('mixed mode: no two adjacent controls both labeled "Today"', () => {
 test('one private charge reads "1 charge"', () => {
   renderTab({ paidSessions: [{ id: 9, date_time: '2026-10-07T15:00:00Z', platform: 'bongacams', username: 'Fay', username_lower: 'fay', session_type: 'Private Chat', usd: 0.38 }] })
   expect(val('details-tips')).toBe('1 charge')
-  expect(screen.getByTestId('session-history').textContent).toMatch(/1Charge(?!s)/)
+  // Owner decision: Recent Sessions rows never say "charge(s)" (it reads as a fee);
+  // a private row counts its billing records as payments received.
+  expect(screen.getByTestId('session-history').textContent).not.toMatch(/charge/i)
+  expect(screen.getByTestId('row-count').textContent).toBe('1Payment')
+})
+
+test('non-private rows still show their tip count', () => {
+  renderTab({ tips: freeChat })
+  expect(screen.getByTestId('row-count').textContent).toBe('2Tips')
 })
 
 test('no data: never signals live activity', () => {
