@@ -235,8 +235,8 @@ function PricingSection({
   user,
 }) {
   const freeFeatures = [
-    'Track up to 3 platforms (1 Primary + 2 Secondary)',
-    'Full history on your Primary platform',
+    'Track up to 2 platforms',
+    'Rolling 31-day history on each platform',
     'Upload tip history by CSV',
     'Basic earnings dashboard',
     'Basic session analytics',
@@ -244,7 +244,6 @@ function PricingSection({
     'Real-time alerts',
     'Basic Live Mode coaching',
     'Top 3 fans',
-    'Last 31 days on your Secondary platforms',
     'Basic fan insights',
   ]
 
@@ -611,11 +610,11 @@ function PromiseSection() {
 const FAQ_ITEMS = [
   {
     q: 'Will the free plan always be available?',
-    a: 'Yes. The free plan will always exist and remain genuinely useful. It includes tracking up to 3 platforms, CSV uploads, basic earnings and session analytics, live tip detection, real-time alerts, basic Live Mode coaching, top-three fan insights, full history on your Primary platform, and the last 31 days on your Secondary platforms.',
+    a: 'Yes. The free plan will always exist and remain genuinely useful. It includes tracking up to 2 platforms with a rolling 31-day history on each, CSV uploads, basic earnings and session analytics, live tip detection, real-time alerts, basic Live Mode coaching, and top-three fan insights.',
   },
   {
     q: 'How many platforms can I track for free?',
-    a: 'The free plan supports up to 3 platforms: full history on your 1 Primary platform and the last 31 days on your 2 Secondary platforms. Pro unlocks full history on every platform and adds advanced cross-platform comparisons.',
+    a: 'The free plan supports up to 2 platforms, each with a rolling 31-day history. Pro removes the platform limit, keeps full permanent history on every platform, and adds advanced cross-platform comparisons.',
   },
   {
     q: 'What does CamCash Pro include?',
@@ -839,7 +838,7 @@ function FinalCTA({ user }) {
         }}
       >
         Free plan always available · No credit card
-        required · Three platforms supported
+        required · Two platforms supported
       </p>
     </section>
   )
