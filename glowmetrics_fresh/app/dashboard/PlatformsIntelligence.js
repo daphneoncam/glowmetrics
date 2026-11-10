@@ -12,6 +12,7 @@ import {
   formatHour,
 } from '../../lib/platformIntelligenceAnalytics'
 import { computeDataVaultStats } from './DashboardPreview'
+import PlatformsUnified from './PlatformsUnified'
 
 const C = {
   card: "#0d1322", card2: "#111829", border: "#1e2d45", border2: "#2a3f5f",
@@ -632,9 +633,12 @@ function SplitView({ analytics, platformName, isPro }) {
 // PAGE
 // ============================================
 
-export default function PlatformsIntelligence({ analytics = null, tips = [], isPro = false, onOpenPlanner = null }) {
+export default function PlatformsIntelligence({ analytics = null, tips = [], isPro = false, onOpenPlanner = null, onGoLive = null }) {
   const [view, setView] = useState('unified')
   const [selectedPlatform, setSelectedPlatform] = useState(null)
+  const [breakdownOpen, setBreakdownOpen] = useState(false)
+  // A platform card opens that platform in the existing Split view.
+  const openPlatform = (p) => { setSelectedPlatform(p); setView('split') }
 
   // Coverage reads the account's real import span via the canonical vault
   // helper rather than deriving its own.
@@ -665,20 +669,36 @@ export default function PlatformsIntelligence({ analytics = null, tips = [], isP
         }
       `}</style>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-        <div>
-          <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.muted }}>Platforms</div>
-          <h1 style={{ margin: '2px 0 0', fontSize: 19, fontWeight: 800, color: C.white }}>Platform Intelligence</h1>
+      <div className="pi-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+          <span aria-hidden="true" style={{ flex: '0 0 54px', height: 54, borderRadius: '50%', display: 'grid', placeItems: 'center', color: C.pink, background: 'radial-gradient(circle at 30% 30%, rgba(236,72,153,0.28), rgba(124,92,255,0.12))', border: '1px solid rgba(236,72,153,0.35)', boxShadow: '0 0 22px rgba(236,72,153,0.25)' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 20V13M10 20V8M15 20V11M20 20V4" /></svg>
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.text }}>Platforms</div>
+            <h1 style={{ margin: '2px 0 0', fontSize: 'clamp(22px, 2.4vw, 30px)', fontWeight: 850, letterSpacing: '-0.02em', color: C.white }}>Platform Intelligence</h1>
+            <div style={{ fontSize: 13, color: C.text, marginTop: 2 }}>Cross-platform performance, trends &amp; opportunities</div>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 2, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 8, padding: 2 }}>
-          {['unified', 'split'].map(v => (
-            <button key={v} onClick={() => setView(v)} style={{
-              padding: '5px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
-              textTransform: 'uppercase', borderRadius: 6, cursor: 'pointer', border: 'none',
-              background: view === v ? C.cyan : 'transparent',
-              color: view === v ? '#05070f' : C.text,
-            }}>{v}</button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div role="group" aria-label="View" style={{ display: 'flex', gap: 2, background: 'rgba(8,10,24,0.6)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 3 }}>
+            {[['unified', 'Unified View'], ['split', 'Split View']].map(([v, l]) => (
+              <button key={v} data-testid={`pi-view-${v}`} aria-pressed={view === v} onClick={() => setView(v)} style={{
+                padding: '7px 16px', fontSize: 13, fontWeight: 700, borderRadius: 9, cursor: 'pointer',
+                border: `1px solid ${view === v ? 'rgba(34,211,238,0.75)' : 'transparent'}`,
+                background: view === v ? 'rgba(34,211,238,0.1)' : 'transparent',
+                boxShadow: view === v ? '0 0 14px rgba(34,211,238,0.25)' : 'none',
+                color: view === v ? '#e0fbff' : C.text,
+              }}>{l}</button>
+            ))}
+          </div>
+          {onGoLive && (
+            <button data-testid="pi-go-live" onClick={onGoLive} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 18px', fontSize: 14, fontWeight: 800,
+              borderRadius: 11, cursor: 'pointer', border: 'none', color: '#04120d',
+              background: 'linear-gradient(90deg, #10B981, #22D3EE)', boxShadow: '0 0 20px rgba(16,185,129,0.35)',
+            }}><span aria-hidden="true">⚡</span>Go Live</button>
+          )}
         </div>
       </div>
 
@@ -687,7 +707,18 @@ export default function PlatformsIntelligence({ analytics = null, tips = [], isP
           No platform has enough session data to analyse yet. Import tips from a platform and CamCash will build its intelligence from there.
         </Empty>
       ) : view === 'unified' ? (
-        <UnifiedView analytics={analytics} coverage={coverage} isPro={isPro} onOpenPlanner={onOpenPlanner} />
+        <>
+          <PlatformsUnified analytics={analytics} coverage={coverage} isPro={isPro} onSelectPlatform={openPlatform} onOpenPlanner={onOpenPlanner} />
+          {/* The previous detailed tables (efficiency, full comparison, supporters,
+              next best move, Pro upsell) stay available, collapsed. */}
+          <div style={{ marginTop: 16, border: '1px solid rgba(168,85,247,0.22)', borderRadius: 16, background: 'rgba(10,12,28,0.7)' }}>
+            <button data-testid="pi-breakdown-toggle" aria-expanded={breakdownOpen} onClick={() => setBreakdownOpen((v) => !v)} style={{
+              width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 18px',
+              background: 'none', border: 'none', color: C.white, fontSize: 14, fontWeight: 750, cursor: 'pointer',
+            }}><span>Full breakdown <span style={{ color: C.text, fontWeight: 500 }}>· tables, supporters, next best move</span></span><span aria-hidden="true" style={{ color: C.text }}>{breakdownOpen ? '–' : '+'}</span></button>
+            {breakdownOpen && <div data-testid="pi-breakdown" style={{ padding: '4px 18px 18px' }}><UnifiedView analytics={analytics} coverage={coverage} isPro={isPro} onOpenPlanner={onOpenPlanner} /></div>}
+          </div>
+        </>
       ) : (
         <>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
