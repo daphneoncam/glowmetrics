@@ -491,7 +491,7 @@ function BucketsView({ e, tips, tz }) {
         <table data-testid="buckets-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, color: C.text }}>
           <thead><tr style={{ textAlign: "left", color: C.muted }}>
             <th style={{ padding: "4px 6px" }}>Time</th><th style={{ padding: "4px 6px", textAlign: "right" }}>Public</th><th style={{ padding: "4px 6px", textAlign: "right" }}>Private</th>
-            <th style={{ padding: "4px 6px", textAlign: "right" }}>{e.type === "private" ? "Charges" : "Tips"}</th><th style={{ padding: "4px 6px", textAlign: "right" }}>Fans</th><th style={{ padding: "4px 6px" }}>Top fan</th>
+            <th style={{ padding: "4px 6px", textAlign: "right" }}>{e.type === "private" ? "Payments" : "Tips"}</th><th style={{ padding: "4px 6px", textAlign: "right" }}>Fans</th><th style={{ padding: "4px 6px" }}>Top fan</th>
           </tr></thead>
           <tbody>
             {d.buckets.map((b, i) => (
@@ -530,7 +530,7 @@ function FanDriversView({ e, tips, paidSessions, isPro, primaryPlatform }) {
               <PlatformCell platform={pName(f.platform)} />
               <Badge text={f.returning ? "RETURNING" : newLabel(f.platform).toUpperCase()} color={f.returning ? C.green : C.cyan} testId={`fan-status-${f.returning ? "returning" : "new"}`} />
             </div>
-            <div style={{ fontSize: 12, color: C.text, marginTop: 3 }}>{f.count} {e.type === "private" ? (f.count === 1 ? "charge" : "charges") : (f.count === 1 ? "tip" : "tips")}</div>
+            <div style={{ fontSize: 12, color: C.text, marginTop: 3 }}>{f.count} {e.type === "private" ? (f.count === 1 ? "payment" : "payments") : (f.count === 1 ? "tip" : "tips")}</div>
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontWeight: 900, color: C.white }}>{fmtUsd(f.usd)}</div>
@@ -639,11 +639,11 @@ function Details({ e, tips, paidSessions = [], tz, today, signal, isPro = true, 
       <div className="sx-dgrid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: 8 }}>
         <Cell value={fmtUsd(e.publicUSD)} label="Public" testId="details-public" />
         <Cell value={fmtUsd(e.privateUSD)} label="Private" testId="details-private" accent={C.pink} />
-        <Cell value={e.type === "private" ? `${e.chargeCount} ${e.chargeCount === 1 ? "charge" : "charges"}` : e.tipCount} label={e.type === "private" ? "Billing" : "Tips"} testId="details-tips" />
+        <Cell value={e.type === "private" ? `${e.chargeCount} ${e.chargeCount === 1 ? "payment" : "payments"}` : e.tipCount} label={e.type === "private" ? "Received" : "Tips"} testId="details-tips" />
         <Cell value={e.uniqueTippers} label="Unique Tippers" testId="details-unique" />
         <Cell value={e.type === "live" ? fmtUsd(e.show?.largestTipUsd) : e.type === "private" ? "—" : fmtUsd(Math.max(0, ...(e.session?.tips || []).map((x) => Number(x.usd) || 0)))} label="Largest Tip" testId="details-largest" />
         <Cell value={e.topTipper ? e.topTipper.username : e.fan || "—"} label={e.type === "private" ? "Fan" : "Top Tipper"} testId="details-top" />
-        <Cell value={lengthText(e)} label={e.type === "private" ? "Charge span" : e.type === "live" ? "Duration" : "Est. span (first→last tip)"} testId="details-duration" />
+        <Cell value={lengthText(e)} label={e.type === "private" ? "Payment span" : e.type === "live" ? "Duration" : "Est. span (first→last tip)"} testId="details-duration" />
         <Cell value={e.type === "live" ? fmtDuration(e.show?.privateSeconds || 0) : "—"} label="Private Time" testId="details-private-time" />
       </div>
       <div style={{ ...inset, padding: "12px 14px" }}>

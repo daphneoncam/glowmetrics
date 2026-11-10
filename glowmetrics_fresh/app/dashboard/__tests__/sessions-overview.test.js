@@ -131,7 +131,7 @@ test('imported private charges are one PRIVATE session and count as private', ()
   // imported-only data → Overall Performance hero
   expect(screen.queryByTestId('overall-private')).toBeNull() // Overall hero removed
   expect(screen.getByTestId('session-pulse')).toBeTruthy()
-  expect(val('details-tips')).toBe('2 charges')
+  expect(val('details-tips')).toBe('2 payments') // owner: 'payments', not 'charges'
 })
 
 test('LIVE NOW: running show leads the list and the hero chip shows it', () => {
@@ -231,9 +231,9 @@ test('mixed mode: no two adjacent controls both labeled "Today"', () => {
   expect(screen.getByTestId('range-group').textContent).not.toMatch(/Today/)
 })
 
-test('one private charge reads "1 charge"', () => {
+test('one private payment reads "1 payment"', () => {
   renderTab({ paidSessions: [{ id: 9, date_time: '2026-10-07T15:00:00Z', platform: 'bongacams', username: 'Fay', username_lower: 'fay', session_type: 'Private Chat', usd: 0.38 }] })
-  expect(val('details-tips')).toBe('1 charge')
+  expect(val('details-tips')).toBe('1 payment')
   // Owner decision: Recent Sessions rows never say "charge(s)" (it reads as a fee);
   // a private row counts its billing records as payments received.
   expect(screen.getByTestId('session-history').textContent).not.toMatch(/charge/i)
