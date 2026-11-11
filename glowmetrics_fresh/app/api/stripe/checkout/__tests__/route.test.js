@@ -96,6 +96,15 @@ describe('POST /api/stripe/checkout', () => {
     expect(args.cancel_url).toBe('https://www.camcashgrl.com/dashboard?canceled=true')
   })
 
+  test('paid-now request (trial: false): no trial period and no trial in the return URL', async () => {
+    const res = await POST(req({ plan_type: 'standard_monthly', trial: false }))
+    expect(res.status).toBe(200)
+    const args = stripe.checkout.sessions.create.mock.calls[0][0]
+    expect(args.subscription_data.trial_period_days).toBeUndefined()
+    expect(args.subscription_data.metadata).toEqual({ userId: 'u1', plan_type: 'standard_monthly' })
+    expect(args.success_url).toBe('https://www.camcashgrl.com/dashboard?success=true&plan=standard_monthly')
+  })
+
   test('a Stripe session without a URL is an error, not a silent success', async () => {
     stripe.checkout.sessions.create.mockResolvedValueOnce({ id: 'cs_x', url: null })
     const res = await POST(req({ plan_type: 'standard_monthly' }))

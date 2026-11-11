@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { stripe } from '../../../../lib/stripe'
 import { createSupabaseRouteClient } from '../../../../lib/supabase-server'
 import { createClient } from '@supabase/supabase-js'
+import { PAYWALL_TRIAL_DAYS } from '../../../../lib/paywallTest'
 
 export async function POST(request) {
   try {
@@ -104,6 +105,10 @@ export async function POST(request) {
 
     // Resolve the correct Stripe price ID based on plan_type
     const planType = body.plan_type || 'standard_monthly'
+    // Free trial is the default (existing onboarding trial button sends no flag).
+    // { trial: false } charges immediately: paid-now option for the paywall test.
+    const withTrial = body.trial !== false
+    const trialDays = withTrial ? PAYWALL_TRIAL_DAYS : 0
 
     const PRICE_MAP = {
       standard_monthly:      process.env.STRIPE_MONTHLY_PRICE_ID || process.env.STRIPE_PRICE_STANDARD_MONTHLY || process.env.NEXT_PUBLIC_STRIPE_PRICE_ID,
@@ -144,21 +149,21 @@ export async function POST(request) {
     }
     priceId = price.id
 
-    // Create checkout session with 7-day trial
-    // Card is collected immediately but not charged until after 7 days
+    // Trial: card is collected now, not charged until the trial ends.
+    // No trial: charged immediately.
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
       subscription_data: {
-        trial_period_days: 7,  // Card on file, charge after 7 days
+        ...(withTrial ? { trial_period_days: trialDays } : {}),
         metadata: {
           userId: user.id,
           plan_type: planType,
         }
       },
-      success_url: `${request.headers.get('origin')}/dashboard?success=true&trial=7days&plan=${planType}`,
+      success_url: `${request.headers.get('origin')}/dashboard?success=true${withTrial ? `&trial=${trialDays}days` : ''}&plan=${planType}`,
       cancel_url: `${request.headers.get('origin')}/dashboard?canceled=true`,
       metadata: {
         userId: user.id,
@@ -189,7 +194,7 @@ export async function POST(request) {
         source: 'server_checkout_route',
         customer_id: customerId,
         price_id: priceId,
-        trial_days: 7,
+        trial_days: trialDays,
         created_at: trackedAt,
       },
     })
@@ -200,7 +205,7 @@ export async function POST(request) {
     const { error: trialTrackError } = await admin.from('free_trial_events').insert({
       user_id: user.id,
       event_type: 'trial_checkout_created',
-      trial_days_offered: 7,
+      trial_days_offered: trialDays,
       properties: {
         source: 'server_checkout_route',
         stripe_session_id: session.id,

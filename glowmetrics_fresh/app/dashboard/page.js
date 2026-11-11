@@ -23,6 +23,7 @@ import PlatformsIntelligence from './PlatformsIntelligence'
 import CommandCenter from './CommandCenter'
 import SubscriptionManager from './SubscriptionManager'
 import { platformLimitMessage, FREE_PLATFORM_LIMIT, resolvePlatformRoles as resolvePlanPlatformRoles } from '../../lib/planLimits'
+import { hasDashboardAccess } from '../../lib/paywallTest'
 import Button from '../../components/ui/Button'
 import { useLiveSessionEngine } from '../live/useLiveSessionEngine'
 import PrivateShowControl from '../live/PrivateShowControl'
@@ -1949,6 +1950,8 @@ export default function Dashboard() {
       // signal, so an approximate expiry computed from the redirect's trial
       // day count is fine here. Params are stripped right after so a refresh
       // of this URL doesn't log a duplicate trial_started event.
+      // Captured before the trial block below strips the success params.
+      const justPaid = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('success') === 'true'
       if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search)
         if (params.get('success') === 'true' && params.get('trial')) {
@@ -1965,12 +1968,25 @@ export default function Dashboard() {
           router.replace(`/dashboard${rest ? `?${rest}` : ''}`)
         }
       }
-      supabase.from('profiles')
-        .select('plan, primary_pro_platform, streaming_platforms, timezone')
-        .eq('id', user.id)
-        .maybeSingle()
-        .then(({ data }) => { if (data) setProfile(data) })
-      loadData(user.id)
+      // Paywall test: dashboard data loads only once access is confirmed
+      // (lib/paywallTest.js). After checkout, wait for the webhook to set the
+      // plan before deciding; the redirect is never proof of payment.
+      const checkDashboardAccess = (attempt) => {
+        supabase.from('profiles')
+          .select('plan, primary_pro_platform, streaming_platforms, timezone, subscription_status, trial_ends_at')
+          .eq('id', user.id)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (data) setProfile(data)
+            if (hasDashboardAccess({ profile: data, userCreatedAt: user.created_at })) {
+              loadData(user.id)
+              return
+            }
+            if (justPaid && attempt < 10) { setTimeout(() => checkDashboardAccess(attempt + 1), 2000); return }
+            router.replace('/pricing?paywall=1')
+          })
+      }
+      checkDashboardAccess(0)
       // Load monthly goal from DB
       supabase.from('user_goals').select('*').eq('user_id', user.id).eq('goal_type', 'monthly').maybeSingle()
         .then(({ data }) => { if (data) { setMonthlyGoal(data.target_usd); setGoalInput(data.target_usd.toString()) } })

@@ -34,7 +34,7 @@ export default function HomePage() {
     operatingSystem: 'Web',
     url: 'https://www.camcashgrl.com',
     description: 'Free analytics for cam models on Chaturbate, BongaCams & more. See your top tippers, best stream times, peak earning hours, and exactly what to do to increase tips.',
-    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    offers: { '@type': 'Offer', price: '9.99', priceCurrency: 'USD' },
     featureList: [
       'Chaturbate earnings tracker',
       'BongaCams analytics',

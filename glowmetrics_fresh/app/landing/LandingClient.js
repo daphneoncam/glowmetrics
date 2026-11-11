@@ -204,7 +204,7 @@ function AuthPanel({
           }}>
             {authLoading
               ? (isSignUp ? "Creating account…" : "Logging in…")
-              : (isSignUp ? "Start Free →" : "Log In →")}
+              : (isSignUp ? "Create Account →" : "Log In →")}
           </button>
         </form>
 
@@ -764,10 +764,10 @@ export default function LandingClient() {
     'mainEntity': [
       {
         '@type': 'Question',
-        'name': 'Is CamCash free to use?',
+        'name': 'Is there a free trial?',
         'acceptedAnswer': {
           '@type': 'Answer',
-          'text': 'Yes. The free tier is free forever — install the extension and create an account with no credit card. The free tier keeps full history on your 1 primary platform and the last 31 days on your other platforms (live via the extension, or by uploading your tip data). Full history on every platform and deeper analytics come with the optional CamCash Pro upgrade.'
+          'text': 'Yes. Start with the 7-day free trial (a card is required, and you are not charged until the trial ends), or subscribe now. The dashboard opens with an active subscription or a running trial.'
         }
       },
       {
@@ -780,10 +780,10 @@ export default function LandingClient() {
       },
       {
         '@type': 'Question',
-        'name': 'Can I track more than one platform for free?',
+        'name': 'Can I track more than one platform?',
         'acceptedAnswer': {
           '@type': 'Answer',
-          'text': 'Yes. The free tier keeps full history on the 1 primary platform you choose and the last 31 days on your other platforms. CamCash Pro ($9.99/month) unlocks full history on every platform.'
+          'text': 'Yes. Subscribers get full history on every platform. CamCash Pro is $9.99/month or $99/year.'
         }
       },
       {
@@ -981,9 +981,9 @@ export default function LandingClient() {
   ]
 
   const faqs = [
-    { q: "Is CamCash free to use?", a: "Yes. The free tier is free forever — install the extension and create an account with no credit card. The free tier keeps full history on your 1 primary platform and the last 31 days on your other platforms (live via the extension, or by uploading your tip data). Full history on every platform and deeper analytics come with the optional CamCash Pro upgrade." },
+    { q: "Is there a free trial?", a: "Yes. Start with the 7-day free trial (a card is required, and you are not charged until the trial ends), or subscribe now. The dashboard opens with an active subscription or a running trial." },
     { q: "What file formats do you support?", a: "CSV exports from Chaturbate, BongaCams, and MyFreeCams, plus automatic tip capture through the Chrome extension." },
-    { q: "Can I track more than one platform for free?", a: "Yes. The free tier keeps full history on the 1 primary platform you choose and the last 31 days on your other platforms. CamCash Pro ($9.99/month) unlocks full history on every platform." },
+    { q: "Can I track more than one platform?", a: "Yes. Subscribers get full history on every platform. CamCash Pro is $9.99/month or $99/year." },
     { q: "Is my data safe and private?", a: "Yes. Your data is encrypted, never shared, and never sold." },
   ]
 
@@ -1044,7 +1044,7 @@ export default function LandingClient() {
               color: T.cyanSoft, marginBottom: 22,
             }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.cyan, boxShadow: "0 0 8px rgba(22,244,255,0.8)" }} />
-              Free forever tier
+              7-day free trial
             </div>
 
             <h1 style={{ fontSize: "clamp(36px,4vw,56px)", color: "white", fontWeight: 900, lineHeight: 1.08, marginBottom: 20, letterSpacing: -1.5 }}>
@@ -1062,7 +1062,7 @@ export default function LandingClient() {
                 ["⚡", "Your best stream time, calculated from your real data"],
                 ["👑", "Top fan alerts — who to message and when"],
                 ["📊", "Platform ROI — where your time is actually worth more"],
-                ["🔓", "Free tier: full history on 1 primary platform, last 31 days on the rest (extension or CSV upload) — $9.99/mo for full history everywhere"],
+                ["🔓", "Trial or subscribe: $9.99/mo for full history on every platform (extension or CSV upload)"],
               ].map(([icon, text]) => (
                 <div key={text} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: T.textFaint }}>
                   <span style={{ fontSize: 14 }}>{icon}</span>
@@ -1086,7 +1086,7 @@ export default function LandingClient() {
             <button className="lp-mobile-cta"
               onClick={() => document.getElementById("lp-auth-mobile")?.scrollIntoView({ behavior: "smooth" })}
               style={{ display: "none", marginTop: 28, padding: "14px 36px", borderRadius: 14, background: T.gradientPrimary, color: "#06101A", fontWeight: 800, fontSize: 16, border: "none", cursor: "pointer", boxShadow: "0 0 28px rgba(22,244,255,0.28), 0 0 34px rgba(255,43,174,0.24)", letterSpacing: 0.2 }}>
-              Start Free →
+              Start Your Trial →
             </button>
           </div>
 
@@ -1143,7 +1143,7 @@ export default function LandingClient() {
               ["Built for", "Chaturbate, BongaCams & MyFreeCams"],
               ["What it does", "Finds peak earning hours, ranks top tippers with churn-risk alerts, compares platform payouts, and generates fan re-engagement messages & room titles"],
               ["How you use it", "Install the free Chrome extension or upload a CSV export — no manual data entry"],
-              ["Price", "Free forever: full history on 1 primary platform, last 31 days on your other platforms. Pro is $9.99/mo (or $99/yr) and unlocks full history on every platform"],
+              ["Price", "7-day free trial, or subscribe for $9.99/mo ($99/yr) for full history on every platform"],
               ["Your data", "Encrypted, private, never sold"],
             ].map(([term, desc]) => (
               <div key={term}>
@@ -1224,8 +1224,8 @@ export default function LandingClient() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 20 }}>
           {[
             { num: "1", accent: T.cyan, icon: "🧩", title: "Download Extension", body: "Auto-detect tips instantly. Works without an account. Use immediately.", link: ["/extension", "Download free →"] },
-            { num: "2", accent: T.purple, icon: "📊", title: "Create Free Account", body: "Save your analytics, track growth, unlock AI intelligence. Free forever.", link: null, note: "Free forever + Pro optional" },
-            { num: "3", accent: T.pink, icon: "🚀", title: "Upgrade Anytime", body: "CamCash Pro is $9.99/month (or $99/year) when you're ready for full history on every platform.", link: ["/pricing", "See pricing →"] },
+            { num: "2", accent: T.purple, icon: "📊", title: "Create Your Account", body: "Save your analytics, track growth, unlock AI intelligence.", link: null, note: "7-day trial or subscribe" },
+            { num: "3", accent: T.pink, icon: "🚀", title: "Upgrade Anytime", body: "Subscribe for $9.99/month (or $99/year) for full history on every platform, or start your 7-day free trial.", link: ["/pricing", "See pricing →"] },
           ].map(({ num, accent, icon, title, body, link, note }) => (
             <div key={title} style={{ background: `${accent}0d`, border: `1px solid ${accent}30`, borderRadius: 18, padding: "28px 24px", textAlign: "center", position: "relative" }}>
               <div style={{ width: 30, height: 30, borderRadius: 9, background: T.gradientPrimary, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, color: "#06101A", margin: "0 auto 14px", boxShadow: "0 0 14px rgba(22,244,255,0.3)" }}>{num}</div>
@@ -1248,7 +1248,7 @@ export default function LandingClient() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
           {[
-            { icon: "🌿", text: "Free tier always exists" },
+            { icon: "🌿", text: "Trial or subscription needed for the dashboard" },
             { icon: "🔍", text: "Transparent about everything" },
             { icon: "🔒", text: "No surprise feature locks" },
             { icon: "💜", text: "Built by cam models, for cam models" },

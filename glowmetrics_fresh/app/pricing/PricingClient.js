@@ -24,9 +24,9 @@ const PLAN_PRICE = { standard_monthly: 9.99, standard_annual: 99 }
  *   STRIPE_MONTHLY_PRICE_ID
  *   NEXT_PUBLIC_STRIPE_PRICE_ANNUAL
  */
-async function startCheckout(planType, setLoading) {
+async function startCheckout(planType, setLoading, trial = true) {
   setLoading(planType)
-  track('pricing_plan_selected', { plan_type: planType, plan_price: PLAN_PRICE[planType] })
+  track('pricing_plan_selected', { plan_type: planType, plan_price: PLAN_PRICE[planType], trial })
   let failureTracked = false
   const fail = (reason, extra = {}) => {
     failureTracked = true
@@ -55,6 +55,7 @@ async function startCheckout(planType, setLoading) {
       credentials: 'include',
       body: JSON.stringify({
         plan_type: planType,
+        trial,
       }),
     })
 
@@ -223,7 +224,7 @@ function TopBar({ user }) {
       >
         {user
           ? 'Back to Dashboard →'
-          : 'Create Free Account →'}
+          : 'Create Your Account →'}
       </Button>
     </div>
   )
@@ -288,101 +289,6 @@ function PricingSection({
             alignItems: 'stretch',
           }}
         >
-          {/* FREE PLAN */}
-          <article
-            style={{
-              background: C.card,
-              border:
-                '1px solid rgba(22,244,255,0.22)',
-              borderRadius: 20,
-              padding: 28,
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            <p
-              style={{
-                color: C.cyan,
-                fontSize: 12,
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                letterSpacing: '1.5px',
-                margin: '0 0 12px',
-              }}
-            >
-              Free
-            </p>
-
-            <div style={{ marginBottom: 8 }}>
-              <span
-                style={{
-                  color: C.white,
-                  fontSize: 42,
-                  fontWeight: 900,
-                  letterSpacing: '-1px',
-                }}
-              >
-                $0
-              </span>
-
-              <span
-                style={{
-                  color: C.text,
-                  fontSize: 15,
-                  marginLeft: 4,
-                }}
-              >
-                /forever
-              </span>
-            </div>
-
-            <p
-              style={{
-                color: C.text,
-                fontSize: 14,
-                lineHeight: 1.6,
-                margin: '0 0 24px',
-              }}
-            >
-              Start tracking your earnings and using
-              CamCash without a credit card.
-            </p>
-
-            <div
-              style={{
-                flexGrow: 1,
-                marginBottom: 26,
-              }}
-            >
-              {freeFeatures.map((feature) => (
-                <CheckLine
-                  key={feature}
-                  color={C.cyan}
-                >
-                  {feature}
-                </CheckLine>
-              ))}
-            </div>
-
-            <Button
-              as="a"
-              href={user ? '/dashboard' : '/landing'}
-              onClick={() => track('pricing_cta_clicked', { cta: user ? 'free_card_dashboard' : 'free_card_start_free', logged_in: !!user })}
-              variant="secondary"
-              style={{
-                display: 'block',
-                width: '100%',
-                padding: '13px 0',
-                fontSize: 14,
-                textAlign: 'center',
-              }}
-            >
-              {user
-                ? 'Continue to Dashboard →'
-                : 'Start Free →'}
-            </Button>
-          </article>
-
           {/* STANDARD PLAN */}
           <article
             style={{
@@ -489,7 +395,8 @@ function PricingSection({
                 onClick={() =>
                   startCheckout(
                     'standard_monthly',
-                    setCheckoutLoading
+                    setCheckoutLoading,
+                    true
                   )
                 }
                 disabled={checkoutLoading !== null}
@@ -503,7 +410,28 @@ function PricingSection({
                 {checkoutLoading ===
                 'standard_monthly'
                   ? 'Redirecting…'
-                  : 'Choose Monthly — $9.99'}
+                  : 'Start 7-day free trial'}
+              </Button>
+
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() =>
+                  startCheckout(
+                    'standard_monthly',
+                    setCheckoutLoading,
+                    false
+                  )
+                }
+                disabled={checkoutLoading !== null}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  padding: '13px 0',
+                  fontSize: 14,
+                }}
+              >
+                Subscribe now — $9.99/month
               </Button>
 
               <Button
@@ -512,7 +440,8 @@ function PricingSection({
                 onClick={() =>
                   startCheckout(
                     'standard_annual',
-                    setCheckoutLoading
+                    setCheckoutLoading,
+                    false
                   )
                 }
                 disabled={checkoutLoading !== null}
@@ -538,8 +467,8 @@ function PricingSection({
 
 function PromiseSection() {
   const promises = [
-    'The free plan will always exist and remain genuinely useful',
-    'Core live tracking and basic coaching stay free',
+    'Start with a 7-day free trial (card required)',
+    'Or subscribe now and get immediate access',
     'Pro unlocks full history on every platform and deeper insights',
     'No surprise feature locks after launch',
     '30 days notice before material pricing or plan changes',
@@ -610,12 +539,12 @@ function PromiseSection() {
 
 const FAQ_ITEMS = [
   {
-    q: 'Will the free plan always be available?',
-    a: 'Yes. The free plan will always exist and remain genuinely useful. It includes tracking up to 3 platforms, CSV uploads, basic earnings and session analytics, live tip detection, real-time alerts, basic Live Mode coaching, top-three fan insights, full history on your Primary platform, and the last 31 days on your Secondary platforms.',
+    q: 'Is there a free trial?',
+    a: 'Yes. Choose the 7-day free trial. A card is required to start, and it is not charged until the trial ends. You can also subscribe now to pay immediately.',
   },
   {
-    q: 'How many platforms can I track for free?',
-    a: 'The free plan supports up to 3 platforms: full history on your 1 Primary platform and the last 31 days on your 2 Secondary platforms. Pro unlocks full history on every platform and adds advanced cross-platform comparisons.',
+    q: 'What do I need to open the dashboard?',
+    a: 'An active subscription or a running free trial. Accounts created before 11 November 2026 keep their existing dashboard access and data.',
   },
   {
     q: 'What does CamCash Pro include?',
@@ -778,7 +707,7 @@ function FinalCTA({ user }) {
           letterSpacing: '-1px',
         }}
       >
-        Start free. Grow forever.
+        Start your trial. Grow with CamCash.
       </h2>
 
       <p
@@ -790,9 +719,8 @@ function FinalCTA({ user }) {
           lineHeight: 1.6,
         }}
       >
-        Create a free account or return to your
-        dashboard. No credit card is required for the
-        Free plan.
+        Create an account, then choose the 7-day free
+        trial (card required) or subscribe now.
       </p>
 
       <div
@@ -814,7 +742,7 @@ function FinalCTA({ user }) {
         >
           {user
             ? 'Go to Dashboard →'
-            : 'Create Free Account →'}
+            : 'Create Your Account →'}
         </Button>
 
         <Button
@@ -838,8 +766,8 @@ function FinalCTA({ user }) {
           margin: 0,
         }}
       >
-        Free plan always available · No credit card
-        required · Three platforms supported
+        Card required for the free trial · Trial is
+        charged only after 7 days
       </p>
     </section>
   )

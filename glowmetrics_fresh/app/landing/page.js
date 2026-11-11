@@ -189,7 +189,7 @@ function AuthPanel({
           }}>
             {authLoading
               ? (isSignUp ? "Creating account…" : "Logging in…")
-              : (isSignUp ? "Start Free →" : "Log In →")}
+              : (isSignUp ? "Create Account →" : "Log In →")}
           </button>
         </form>
 
@@ -880,7 +880,7 @@ export default function LandingPage() {
   ]
 
   const faqs = [
-    { q: "Is CamCash free to use?", a: "Yes. The free tier is free forever — install the extension and create an account with no credit card. CamCash Pro is optional and unlocks deeper insights." },
+    { q: "Is there a free trial?", a: "Yes. Start with the 7-day free trial (a card is required, and you are not charged until the trial ends), or subscribe now. CamCash Pro is $9.99/month or $99/year." },
     { q: "What file formats do you support?", a: "CSV exports from Chaturbate, BongaCams, and MyFreeCams, plus automatic tip capture through the Chrome extension." },
     { q: "Is my data safe and private?", a: "Yes. Your data is encrypted, never shared, and never sold." },
   ]
@@ -934,7 +934,7 @@ export default function LandingPage() {
               color: T.cyanSoft, marginBottom: 22,
             }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.cyan, boxShadow: "0 0 8px rgba(22,244,255,0.8)" }} />
-              Free forever tier
+              7-day free trial
             </div>
 
             <h1 style={{ fontSize: "clamp(36px,4vw,56px)", color: "white", fontWeight: 900, lineHeight: 1.08, marginBottom: 20, letterSpacing: -1.5 }}>
@@ -975,7 +975,7 @@ export default function LandingPage() {
             <button className="lp-mobile-cta"
               onClick={() => document.getElementById("lp-auth-mobile")?.scrollIntoView({ behavior: "smooth" })}
               style={{ display: "none", marginTop: 28, padding: "14px 36px", borderRadius: 14, background: T.gradientPrimary, color: "#06101A", fontWeight: 800, fontSize: 16, border: "none", cursor: "pointer", boxShadow: "0 0 28px rgba(22,244,255,0.28), 0 0 34px rgba(255,43,174,0.24)", letterSpacing: 0.2 }}>
-              Start Free →
+              Start Your Trial →
             </button>
           </div>
 
@@ -1010,7 +1010,7 @@ export default function LandingPage() {
               ["Built for", "Chaturbate, BongaCams & MyFreeCams"],
               ["What it does", "Finds peak earning hours, ranks top tippers with churn-risk alerts, compares platform payouts, and generates fan re-engagement messages & room titles"],
               ["How you use it", "Install the free Chrome extension or upload a CSV export — no manual data entry"],
-              ["Price", "Free forever: full history on your 1 primary platform, plus the last 31 days on your other platforms. Pro ($9.99/mo) unlocks full history on every platform."],
+              ["Price", "7-day free trial, or subscribe for $9.99/mo for full history on every platform."],
               ["Your data", "Encrypted, private, never sold"],
             ].map(([term, desc]) => (
               <div key={term}>
@@ -1091,8 +1091,8 @@ export default function LandingPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 20 }}>
           {[
             { num: "1", accent: T.cyan, icon: "🧩", title: "Download Extension", body: "Auto-detect tips instantly. Works without an account. Use immediately.", link: ["/extension", "Download free →"] },
-            { num: "2", accent: T.purple, icon: "📊", title: "Create Free Account", body: "Save your analytics, track growth, unlock AI intelligence. Free forever.", link: null, note: "Free forever + Pro optional" },
-            { num: "3", accent: T.pink, icon: "🚀", title: "Try Pro Free", body: "Start your free trial of CamCash Pro. Cancel anytime.", link: ["/pricing", "Start free trial →"] },
+            { num: "2", accent: T.purple, icon: "📊", title: "Create Your Account", body: "Save your analytics, track growth, unlock AI intelligence.", link: null, note: "7-day trial or subscribe" },
+            { num: "3", accent: T.pink, icon: "🚀", title: "Try the Free Trial", body: "Start your free trial of CamCash Pro. Cancel anytime.", link: ["/pricing", "Start free trial →"] },
           ].map(({ num, accent, icon, title, body, link, note }) => (
             <div key={title} style={{ background: `${accent}0d`, border: `1px solid ${accent}30`, borderRadius: 18, padding: "28px 24px", textAlign: "center", position: "relative" }}>
               <div style={{ width: 30, height: 30, borderRadius: 9, background: T.gradientPrimary, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, color: "#06101A", margin: "0 auto 14px", boxShadow: "0 0 14px rgba(22,244,255,0.3)" }}>{num}</div>
@@ -1115,7 +1115,7 @@ export default function LandingPage() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
           {[
-            { icon: "🌿", text: "Free tier always exists" },
+            { icon: "🌿", text: "Trial or subscription needed for the dashboard" },
             { icon: "🔍", text: "Transparent about everything" },
             { icon: "🔒", text: "No surprise feature locks" },
             { icon: "💜", text: "Built by cam models, for cam models" },
