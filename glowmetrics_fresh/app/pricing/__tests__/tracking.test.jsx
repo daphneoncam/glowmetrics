@@ -41,7 +41,8 @@ test('choosing monthly tracks selection and the Stripe redirect', async () => {
   mockSession = { user: { id: 'u1' }, access_token: 't' }
   global.fetch.mockResolvedValue({ ok: true, json: async () => ({ url: 'https://checkout.stripe.test/x' }) })
   render(<PricingClient />)
-  fireEvent.click(screen.getByRole('button', { name: /Choose Monthly/ }))
+  fireEvent.click(screen.getByRole('radio', { name: /Monthly/ }))
+  fireEvent.click(screen.getByRole('button', { name: /Unlock Pro Insights/ }))
   // jsdom cannot navigate; the redirect event is recorded right before assign().
   await waitFor(() => expect(events('pricing_checkout_redirected')).toHaveLength(1))
   expect(events('pricing_plan_selected')[0]).toEqual({ plan_type: 'standard_monthly', plan_price: 9.99 })
@@ -53,7 +54,7 @@ test('checkout API error is tracked once with the status code', async () => {
   mockSession = { user: { id: 'u1' }, access_token: 't' }
   global.fetch.mockResolvedValue({ ok: false, status: 500, json: async () => ({ error: 'boom' }) })
   render(<PricingClient />)
-  fireEvent.click(screen.getByRole('button', { name: /Choose Annual/ }))
+  fireEvent.click(screen.getByRole('button', { name: /Unlock Pro Insights/ }))
   await waitFor(() => expect(events('pricing_checkout_failed')).toHaveLength(1))
   expect(events('pricing_plan_selected')[0]).toEqual({ plan_type: 'standard_annual', plan_price: 99 })
   expect(events('pricing_checkout_failed')[0]).toEqual({ plan_type: 'standard_annual', reason: 'api_error', status_code: 500 })
@@ -61,7 +62,8 @@ test('checkout API error is tracked once with the status code', async () => {
 
 test('missing login session is tracked as no_session', async () => {
   render(<PricingClient />)
-  fireEvent.click(screen.getByRole('button', { name: /Choose Monthly/ }))
+  fireEvent.click(screen.getByRole('radio', { name: /Monthly/ }))
+  fireEvent.click(screen.getByRole('button', { name: /Unlock Pro Insights/ }))
   await waitFor(() => expect(events('pricing_checkout_failed')).toHaveLength(1))
   expect(events('pricing_checkout_failed')[0]).toEqual({ plan_type: 'standard_monthly', reason: 'no_session' })
   expect(global.fetch).not.toHaveBeenCalled()
@@ -71,7 +73,8 @@ test('network failure is tracked as network_error', async () => {
   mockSession = { user: { id: 'u1' }, access_token: 't' }
   global.fetch.mockRejectedValue(new Error('offline'))
   render(<PricingClient />)
-  fireEvent.click(screen.getByRole('button', { name: /Choose Monthly/ }))
+  fireEvent.click(screen.getByRole('radio', { name: /Monthly/ }))
+  fireEvent.click(screen.getByRole('button', { name: /Unlock Pro Insights/ }))
   await waitFor(() => expect(events('pricing_checkout_failed')).toHaveLength(1))
   expect(events('pricing_checkout_failed')[0].reason).toBe('network_error')
 })
