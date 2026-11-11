@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { parseCSV, detectPlatform, detectDateOrder, computeSnapshotStats } from '../../../lib/analytics'
 import { platformLimitMessage } from '../../../lib/planLimits'
-import { canonicalPlatform, PLATFORM_TOKEN_RATES } from '../../../lib/constants'
+import { canonicalPlatform, PLATFORM_TOKEN_RATES, tokensToUsd } from '../../../lib/constants'
 import { importTimeZone, toStoredInstant } from '../../../lib/creatorTimezone'
 
 const KNOWN_PLATFORMS = Object.keys(PLATFORM_TOKEN_RATES)
@@ -170,7 +170,15 @@ async function handleUpload(req) {
 
   const rows = parsed.map((row) => {
     const tokens = Number(row.tokens) || 0
-    const usd = parseFloat((Number(row.usd) || 0).toFixed(2))
+    // Keep the parser's USD at 4 decimals (never cents per tip). A row parsed as
+    // 'Unknown' had its USD priced at the default rate, but is stored under the
+    // text-detected platform, so re-price it from tokens at that platform's rate.
+    const parsedUnknown = !row.platform || row.platform === 'Unknown'
+    const storedPlatform = parsedUnknown ? textDetectedPlatform : row.platform
+    const pricedFromTokens = Math.abs((Number(row.usd) || 0) - tokensToUsd(tokens, 'Unknown')) < 1e-9
+    const usd = parsedUnknown && tokens > 0 && pricedFromTokens && storedPlatform && storedPlatform !== 'Unknown'
+      ? tokensToUsd(tokens, storedPlatform)
+      : Math.round((Number(row.usd) || 0) * 1e4) / 1e4
 
     return {
       user_id:   user.id,
