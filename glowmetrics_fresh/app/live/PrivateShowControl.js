@@ -57,6 +57,8 @@ export default function PrivateShowControl({ engine }) {
   const [username, setUsername] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const firstFieldRef = useRef(null)
+  const dialogRef = useRef(null)
+  const triggerRef = useRef(null)
   const open = engine.privateInterval
   const session = engine.serverSession
   const platform = session?.stream_platform || null
@@ -65,9 +67,27 @@ export default function PrivateShowControl({ engine }) {
   const close = () => { setStep(null); setSubmitted(false) }
   useEffect(() => {
     if (!step) return undefined
-    const onKey = (e) => { if (e.key === 'Escape') close() }
+    const onKey = (e) => {
+      if (e.key === 'Escape') { close(); return }
+      // Keep Tab inside the pop-up (the page behind it is not usable).
+      if (e.key !== 'Tab' || !dialogRef.current) return
+      const items = [...dialogRef.current.querySelectorAll('button:not([disabled]), input:not([disabled])')]
+      if (!items.length) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      const inside = dialogRef.current.contains(document.activeElement)
+      if (e.shiftKey && (document.activeElement === first || !inside)) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && (document.activeElement === last || !inside)) { e.preventDefault(); first.focus() }
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+  }, [step])
+  // Focus: first useful control on open; back to the button on close.
+  const wasOpen = useRef(false)
+  useEffect(() => {
+    if (step && step !== 'details') dialogRef.current?.querySelector('button')?.focus()
+    if (!step && wasOpen.current) triggerRef.current?.focus()
+    wasOpen.current = !!step
   }, [step])
   useEffect(() => { if (step === 'details') firstFieldRef.current?.focus() }, [step])
   // The stream ended or dropped while the pop-up was open: show why.
@@ -126,7 +146,7 @@ export default function PrivateShowControl({ engine }) {
 
   return (
     <>
-      <button data-testid="private-start" type="button" disabled={engine.actionPending}
+      <button ref={triggerRef} data-testid="private-start" type="button" disabled={engine.actionPending}
         aria-haspopup="dialog" onClick={openPrompt}
         title={blocker ? BLOCKER_COPY[blocker].title : `Private on ${platform}`}
         style={btn(C.pink, engine.actionPending)}>
@@ -136,9 +156,9 @@ export default function PrivateShowControl({ engine }) {
       {step && (
         <div data-testid="private-overlay" onClick={close}
           style={{ position: 'fixed', inset: 0, zIndex: 1000, background: C.overlay, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div role="dialog" aria-modal="true" aria-labelledby="private-dialog-title" data-testid={`private-dialog-${step}`}
+          <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="private-dialog-title" data-testid={`private-dialog-${step}`}
             onClick={(e) => e.stopPropagation()}
-            style={{ width: '100%', maxWidth: 380, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 20, color: C.white, boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
+            style={{ width: '100%', maxWidth: 380, maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', boxSizing: 'border-box', background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 20, color: C.white, boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
 
             {step === 'blocked' && copy && (
               <>

@@ -8,12 +8,21 @@
 -- Only the lines that compute "active seconds" change in the first two.
 --
 -- 1. Free clock
---    clock start  = the earliest live_tips.received_at of tips attributed to
---                   this session (never before the session's started_at).
---                   Test tips are never saved (app/api/live/tips/route.js),
---                   so every live_tips row is a real tip. "Clear Feed" only
---                   sets tips_cleared_at, it never deletes tips, so it can't
---                   restart the clock.
+--    clock start  = SERVER time (now()) when the first real tip attributed
+--                   to this session is saved, stored once on
+--                   live_sessions.free_clock_started_at. Never the tip's own
+--                   received_at: that is the extension computer's clock, so
+--                   a wrong computer clock would shift the limit.
+--                   live_sessions is read-only to creators (SELECT grant
+--                   only), so the stored start can't be edited; deleting or
+--                   back-dating live_tips (which creators CAN write, policy
+--                   "Users manage own live tips") does not move it.
+--                   Test tips are never saved (app/api/live/tips/route.js).
+--                   "Clear Feed" only sets tips_cleared_at.
+--                   Only a tip whose user_id owns the session starts it.
+--                   The trigger never blocks or fails a tip insert: it skips
+--                   a session row that is locked at that instant (the next
+--                   tip sets the clock) and swallows its own errors.
 --    free active  = (ref - clock start) - paused time AFTER clock start,
 --                   ref = paused_at if paused, else now() (the same ref the
 --                   existing code uses). Pauses come from
@@ -38,12 +47,60 @@
 
 BEGIN;
 
--- Lookup for the clock start (live_tips had no index on live_session_id).
-CREATE INDEX IF NOT EXISTS idx_live_tips_live_session_received
-  ON public.live_tips (live_session_id, received_at)
-  WHERE live_session_id IS NOT NULL;
+-- ── 1a. Stored clock start (server time) ──────────────────────────────────
+ALTER TABLE public.live_sessions ADD COLUMN IF NOT EXISTS free_clock_started_at timestamptz;
 
--- ── 1a. The one implementation of the Free clock ──────────────────────────
+CREATE OR REPLACE FUNCTION public._live_free_clock_start_on_tip()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  v_id uuid;
+BEGIN
+  -- SKIP LOCKED: never wait on the session row (the tip writer already holds
+  -- the creator's advisory lock; waiting here could deadlock with a sweep
+  -- that holds the row and wants that lock).
+  SELECT id INTO v_id FROM public.live_sessions
+   WHERE id = NEW.live_session_id
+     AND user_id = NEW.user_id
+     AND free_clock_started_at IS NULL
+     AND status IN ('starting', 'live', 'inactive_warning')
+   FOR UPDATE SKIP LOCKED;
+  IF v_id IS NOT NULL THEN
+    UPDATE public.live_sessions
+       SET free_clock_started_at = GREATEST(started_at, now())
+     WHERE id = v_id;
+  END IF;
+  RETURN NEW;
+EXCEPTION WHEN others THEN
+  -- The tip is the money record; the clock must never cost a tip.
+  RAISE WARNING 'free clock start skipped for session %: %', NEW.live_session_id, SQLERRM;
+  RETURN NEW;
+END;
+$$;
+REVOKE ALL ON FUNCTION public._live_free_clock_start_on_tip() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS trg_live_free_clock_start ON public.live_tips;
+CREATE TRIGGER trg_live_free_clock_start
+  AFTER INSERT ON public.live_tips
+  FOR EACH ROW WHEN (NEW.live_session_id IS NOT NULL)
+  EXECUTE FUNCTION public._live_free_clock_start_on_tip();
+
+-- Streams already running when this is applied: there is no server time for
+-- their earlier tips, so their first linked tip's received_at is used once,
+-- clamped to [started_at, now()]. New streams never use received_at.
+UPDATE public.live_sessions s
+   SET free_clock_started_at = LEAST(GREATEST(s.started_at, t.first_at), now())
+  FROM (SELECT live_session_id, min(received_at) AS first_at
+          FROM public.live_tips WHERE live_session_id IS NOT NULL
+         GROUP BY 1) t
+ WHERE t.live_session_id = s.id
+   AND s.free_clock_started_at IS NULL
+   AND s.status IN ('starting', 'live', 'inactive_warning');
+
+-- ── 1b. The one implementation of the Free clock ──────────────────────────
 CREATE OR REPLACE FUNCTION public._live_free_clock(
   p_session public.live_sessions,
   p_ref timestamptz,
@@ -56,19 +113,14 @@ STABLE
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
-DECLARE
-  v_first timestamptz;
 BEGIN
-  SELECT min(t.received_at) INTO v_first
-    FROM public.live_tips t
-   WHERE t.live_session_id = p_session.id;
-
-  -- GREATEST ignores NULLs, so the no-tip case must be handled first.
-  IF v_first IS NULL THEN
-    RETURN;  -- all three OUT values NULL: the clock has not started
+  IF p_session.free_clock_started_at IS NULL THEN
+    RETURN;  -- all three OUT values NULL: no real tip yet, clock not started
   END IF;
 
-  clock_started_at := LEAST(GREATEST(p_session.started_at, v_first), p_ref);
+  -- Clamped to ref: a tip saved during an open pause reads as "0 so far"
+  -- until resume (ref = paused_at), then counts from the resume.
+  clock_started_at := LEAST(p_session.free_clock_started_at, p_ref);
 
   SELECT COALESCE(sum(GREATEST(0, EXTRACT(EPOCH FROM (
            LEAST(COALESCE(x.resumed_at, p_ref), p_ref) - GREATEST(x.paused_at, clock_started_at)
@@ -83,7 +135,7 @@ $$;
 REVOKE ALL ON FUNCTION public._live_free_clock(public.live_sessions, timestamptz) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public._live_free_clock(public.live_sessions, timestamptz) TO service_role;
 
--- ── 1b. End-at-limit: production body, active seconds now from the clock ──
+-- ── 1c. End-at-limit: production body, active seconds now from the clock ──
 CREATE OR REPLACE FUNCTION public._end_live_session_at_free_limit(p_session public.live_sessions)
 RETURNS public.live_sessions
 LANGUAGE plpgsql
@@ -141,8 +193,9 @@ $function$;
 REVOKE ALL ON FUNCTION public._end_live_session_at_free_limit(public.live_sessions) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public._end_live_session_at_free_limit(public.live_sessions) TO service_role;
 
--- ── 1c. Sweep: production body; the stream-time filter stays as a cheap
--- pre-filter (free active time can never exceed stream active time), and
+-- ── 1d. Sweep: production body. Cheap pre-filter: only streams whose clock
+-- has started and whose wall time since then is >= the limit (free active
+-- time can never exceed that). Streams with no real tip are never locked.
 -- _end_live_session_at_free_limit makes the real decision.
 CREATE OR REPLACE FUNCTION public.sweep_free_live_active_limits()
 RETURNS integer
@@ -157,7 +210,8 @@ BEGIN
   FOR v_row IN
     SELECT * FROM public.live_sessions
      WHERE status IN ('starting', 'live', 'inactive_warning')
-       AND EXTRACT(EPOCH FROM (COALESCE(paused_at, now()) - started_at)) - COALESCE(total_paused_seconds, 0)
+       AND free_clock_started_at IS NOT NULL
+       AND EXTRACT(EPOCH FROM (COALESCE(paused_at, now()) - free_clock_started_at))
            >= public.live_free_active_seconds_per_stream()
      FOR UPDATE SKIP LOCKED
   LOOP
@@ -171,7 +225,7 @@ $function$;
 REVOKE ALL ON FUNCTION public.sweep_free_live_active_limits() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.sweep_free_live_active_limits() TO service_role;
 
--- ── 1d. Read model for the progress bar (caller's own running session) ────
+-- ── 1e. Read model for the progress bar (caller's own running session) ────
 -- paused_seconds is pause time after the clock start up to ref, so the page
 -- can tick: free active = (paused_at ?? now) - clock_started_at - paused_seconds.
 CREATE OR REPLACE FUNCTION public.get_live_free_clock()

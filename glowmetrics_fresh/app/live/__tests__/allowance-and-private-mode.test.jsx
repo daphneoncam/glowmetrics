@@ -65,6 +65,28 @@ describe('LiveModeAllowanceBar', () => {
   })
 })
 
+describe('Allowance bar — manual plan copy cases', () => {
+  test('FC-06 / FC-07: yellow at 25 min shows 10:00 left; red at 30 min shows 5:00 left', () => {
+    const { rerender } = render(<LiveModeAllowanceBar engine={running(25 * 60)} />)
+    expect(screen.getByText(/10:00 of Free Live Mode left/)).toBeTruthy()
+    rerender(<LiveModeAllowanceBar engine={running(30 * 60)} />)
+    expect(screen.getByText(/5:00 left\. Your Free stream ends automatically at 35 active minutes/)).toBeTruthy()
+  })
+  test('AB-03: before the first real tip the week count still shows', () => {
+    render(<LiveModeAllowanceBar engine={running(null)} />)
+    expect(screen.getByText('Stream 1 of 2 this week')).toBeTruthy()
+  })
+  test('AB-09: the free bar uses free minutes, never the stream timer', () => {
+    // stream timer 1h05, free clock 5 min
+    render(<LiveModeAllowanceBar engine={running(5 * 60)} />)
+    expect(screen.getByText(/5:00 of 35:00 active minutes used/)).toBeTruthy()
+  })
+  test('FC-09: paused freezes the bar and says time is not counting', () => {
+    render(<LiveModeAllowanceBar engine={running(10 * 60, { live_substate: 'paused' })} />)
+    expect(screen.getByText('Paused — time isn’t counting')).toBeTruthy()
+  })
+})
+
 describe('Free clock (first real tip)', () => {
   test('no real tip yet -> says the clock has not started; no countdown', () => {
     render(<LiveModeAllowanceBar engine={running(null)} />)
@@ -198,6 +220,183 @@ describe('PrivateShowControl', () => {
     expect(screen.getByTestId('private-estimate').textContent).toMatch(/—\s*no rate entered/)
     expect(screen.getByTestId('private-estimate').textContent).not.toMatch(/\$0\.00/)
     expect(screen.getByText(/^🔒 Private · BongaCams$/)).toBeTruthy()
+  })
+
+  // ── Manual test plan cases automated (IDs from the plan) ──
+  const openDetails = () => {
+    fireEvent.click(screen.getByTestId('private-start'))
+    fireEvent.click(screen.getByTestId('private-confirm-yes'))
+  }
+
+  test('PF-02: Esc and a click outside both close the pop-up without starting', () => {
+    const engine = liveEngine()
+    render(<PrivateShowControl engine={engine} />)
+    fireEvent.click(screen.getByTestId('private-start'))
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(screen.getByTestId('private-start'))
+    fireEvent.click(screen.getByTestId('private-overlay'))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(screen.getByTestId('private-start'))
+    fireEvent.click(screen.getByRole('dialog')) // a click inside does not close
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(engine.startPrivate).not.toHaveBeenCalled()
+  })
+
+  test('PF-03 / MB-05 / MB-06: details step is a labelled dialog, focus lands on Fan username', () => {
+    render(<PrivateShowControl engine={liveEngine()} />)
+    openDetails()
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
+    expect(document.getElementById(dialog.getAttribute('aria-labelledby')).textContent).toBe('Private show details')
+    expect(document.activeElement).toBe(screen.getByLabelText('Fan username'))
+    expect(screen.getByLabelText('Rate (USD per minute)').getAttribute('inputmode')).toBe('decimal')
+    expect(screen.queryByLabelText(/platform/i)).toBeNull() // platform is not an editable field
+  })
+
+  test('PF-06 / PF-07: rate bounds — invalid values blocked with a message, 0 and 1000 allowed', () => {
+    const engine = liveEngine()
+    render(<PrivateShowControl engine={engine} />)
+    openDetails()
+    fireEvent.change(screen.getByTestId('private-username'), { target: { value: 'fan' } })
+    for (const bad of ['-1', '1001', '-0.01']) {
+      fireEvent.change(screen.getByTestId('private-rate'), { target: { value: bad } })
+      expect(screen.getByTestId('private-continue').disabled).toBe(true)
+      expect(screen.getByTestId('private-rate-error')).toBeTruthy()
+    }
+    for (const good of ['0', '1000', '1e3', '2.5']) {
+      fireEvent.change(screen.getByTestId('private-rate'), { target: { value: good } })
+      expect(screen.getByTestId('private-continue').disabled).toBe(false)
+      expect(screen.queryByTestId('private-rate-error')).toBeNull()
+    }
+    fireEvent.change(screen.getByTestId('private-rate'), { target: { value: '0' } })
+    fireEvent.click(screen.getByTestId('private-continue'))
+    expect(engine.startPrivate).toHaveBeenCalledWith(0, 'fan')
+  })
+
+  test('PF-09: username field is capped at 80 characters', () => {
+    render(<PrivateShowControl engine={liveEngine()} />)
+    openDetails()
+    expect(screen.getByTestId('private-username').getAttribute('maxlength')).toBe('80')
+  })
+
+  test('PF-10: a username containing HTML is shown as plain text, never rendered', () => {
+    const engine = liveEngine({ privateInterval: { started_at: new Date().toISOString(), rate_per_minute: 1, platform: 'BongaCams', username: '<b>x</b><img src=x onerror=alert(1)>' } })
+    const { container } = render(<PrivateShowControl engine={engine} />)
+    expect(container.querySelector('b')).toBeNull()
+    expect(container.querySelector('img')).toBeNull()
+    expect(screen.getByText(/<b>x<\/b>/)).toBeTruthy()
+  })
+
+  test('PF-11: Skip drops anything typed and sends no rate / no username', () => {
+    const engine = liveEngine()
+    render(<PrivateShowControl engine={engine} />)
+    openDetails()
+    fireEvent.change(screen.getByTestId('private-username'), { target: { value: 'fan' } })
+    fireEvent.change(screen.getByTestId('private-rate'), { target: { value: '3' } })
+    fireEvent.click(screen.getByTestId('private-skip'))
+    expect(engine.startPrivate).toHaveBeenCalledWith(null, null)
+  })
+
+  test('PF-13: while a start is in flight, Continue and Skip are disabled', () => {
+    render(<PrivateShowControl engine={liveEngine({ actionPending: true })} />)
+    // the button itself is disabled while pending, so open via a fresh render
+    expect(screen.getByTestId('private-start').disabled).toBe(true)
+  })
+
+  test('PF-13b: details buttons disable when the engine reports a pending action', () => {
+    const engine = liveEngine()
+    const { rerender } = render(<PrivateShowControl engine={engine} />)
+    openDetails()
+    fireEvent.change(screen.getByTestId('private-username'), { target: { value: 'fan' } })
+    fireEvent.change(screen.getByTestId('private-rate'), { target: { value: '2' } })
+    rerender(<PrivateShowControl engine={{ ...engine, actionPending: true }} />)
+    expect(screen.getByTestId('private-continue').disabled).toBe(true)
+    expect(screen.getByTestId('private-skip').disabled).toBe(true)
+    expect(screen.getByTestId('private-continue').textContent).toBe('Starting…')
+  })
+
+  test('PF-15: Cancel keeps typed fields for the same page visit', () => {
+    render(<PrivateShowControl engine={liveEngine()} />)
+    openDetails()
+    fireEvent.change(screen.getByTestId('private-username'), { target: { value: 'fan_keep' } })
+    fireEvent.click(screen.getByText('Cancel'))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    openDetails()
+    expect(screen.getByTestId('private-username').value).toBe('fan_keep')
+  })
+
+  test('PF-16: after a successful start the fields are empty next time', async () => {
+    const engine = liveEngine()
+    const { rerender } = render(<PrivateShowControl engine={engine} />)
+    openDetails()
+    fireEvent.change(screen.getByTestId('private-username'), { target: { value: 'fan' } })
+    fireEvent.change(screen.getByTestId('private-rate'), { target: { value: '2' } })
+    fireEvent.click(screen.getByTestId('private-continue'))
+    await screen.findByTestId('private-start') // dialog closed after success
+    await new Promise((r) => setTimeout(r, 0))
+    rerender(<PrivateShowControl engine={{ ...engine }} />)
+    openDetails()
+    expect(screen.getByTestId('private-username').value).toBe('')
+    expect(screen.getByTestId('private-rate').value).toBe('')
+  })
+
+  test('SP-06 / SP-07: if the stream ends while the pop-up is open, it switches to "First begin a Live Mode session"', () => {
+    const engine = liveEngine()
+    const { rerender } = render(<PrivateShowControl engine={engine} />)
+    openDetails()
+    rerender(<PrivateShowControl engine={{ ...engine, serverSession: null }} />)
+    expect(screen.getByText('First begin a Live Mode session')).toBeTruthy()
+    expect(screen.queryByTestId('private-continue')).toBeNull()
+  })
+
+  test('SP-08: tooltip matches each state', () => {
+    const { rerender } = render(<PrivateShowControl engine={liveEngine({ serverSession: null })} />)
+    expect(screen.getByTestId('private-start').title).toBe('First begin a Live Mode session')
+    rerender(<PrivateShowControl engine={liveEngine({ serverSession: { status: 'starting', stream_platform: 'BongaCams' } })} />)
+    expect(screen.getByTestId('private-start').title).toBe('Your stream is still connecting')
+    rerender(<PrivateShowControl engine={liveEngine()} />)
+    expect(screen.getByTestId('private-start').title).toBe('Private on BongaCams')
+  })
+
+  test('OP-04: a private started in another tab closes this tab\'s open pop-up', () => {
+    const engine = liveEngine()
+    const { rerender } = render(<PrivateShowControl engine={engine} />)
+    openDetails()
+    rerender(<PrivateShowControl engine={{ ...engine, privateInterval: { started_at: new Date().toISOString(), rate_per_minute: 2, platform: 'BongaCams', username: 'x' } }} />)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByTestId('private-open')).toBeTruthy()
+  })
+
+  test('OP-02: estimate = rate x minutes (10 min at $2.00 = $20.00)', () => {
+    expect(privateEstimateUsd({ started_at: '2026-11-10T10:00:00Z', rate_per_minute: 2 }, Date.parse('2026-11-10T10:10:00Z'))).toBe(20)
+    expect(privateEstimateUsd({ started_at: '2026-11-10T10:00:00Z', rate_per_minute: 0 }, Date.parse('2026-11-10T10:10:00Z'))).toBe(0)
+  })
+
+  test('MB-05: Tab stays inside the pop-up (wraps last -> first, Shift+Tab first -> last)', () => {
+    render(<PrivateShowControl engine={liveEngine()} />)
+    openDetails()
+    const cancel = screen.getByText('Cancel')
+    cancel.focus()
+    fireEvent.keyDown(window, { key: 'Tab' })
+    expect(document.activeElement).toBe(screen.getByTestId('private-username'))
+    fireEvent.keyDown(window, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(cancel)
+  })
+
+  test('MB-05: closing returns focus to the Start Private button', () => {
+    render(<PrivateShowControl engine={liveEngine()} />)
+    openDetails()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(document.activeElement).toBe(screen.getByTestId('private-start'))
+  })
+
+  test('MB-04 / MB-08: pop-up never exceeds the screen height and scrolls inside', () => {
+    render(<PrivateShowControl engine={liveEngine()} />)
+    openDetails()
+    const style = screen.getByRole('dialog').style
+    expect(style.maxHeight).toBe('calc(100vh - 32px)')
+    expect(style.overflowY).toBe('auto')
   })
 
   test('no estimate is invented without a rate', () => {

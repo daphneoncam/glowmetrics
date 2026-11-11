@@ -123,6 +123,14 @@ describe('35 active minutes: every polled route asks the database first', () => 
     expect(body.limitEnded).toMatchObject({ id: LIVE.id })
   })
 
+  test('SE-02: signed out session poll -> 401, no clock lookup', async () => {
+    state.user = null
+    const { GET } = await import('../route.js')
+    const res = await GET(req())
+    expect(res.status).toBe(401)
+    expect(rpcNames()).not.toContain('get_live_free_clock')
+  })
+
   test('session poll attaches the Free clock from the database (first real tip)', async () => {
     state.single.live_sessions = { data: LIVE, error: null }
     const tipAt = new Date(Date.now() - 5 * 60 * 1000).toISOString()
@@ -174,6 +182,30 @@ describe('35 active minutes: every polled route asks the database first', () => 
 })
 
 describe('POST /api/live/session/private/start', () => {
+  test('SE-01: signed out -> 401, nothing called', async () => {
+    state.user = null
+    const { POST } = await import('../private/start/route.js')
+    const res = await POST(req({ ratePerMinute: 2, username: 'fan' }))
+    expect(res.status).toBe(401)
+    expect(state.rpcCalls).toEqual([])
+  })
+
+  test('SE-06: a non-text username is refused, nothing called', async () => {
+    const { POST } = await import('../private/start/route.js')
+    const res = await POST(req({ ratePerMinute: 2, username: 12345 }))
+    expect(res.status).toBe(400)
+    expect(state.rpcCalls).toEqual([])
+  })
+
+  test('SE-07: an unexpected database error returns fixed copy, never the raw text', async () => {
+    state.rpc.start_private_interval = { data: null, error: { code: 'XX000', message: 'relation public.live_private_intervals internal detail' } }
+    const { POST } = await import('../private/start/route.js')
+    const res = await POST(req({ ratePerMinute: 2, username: 'fan' }))
+    const body = await res.json()
+    expect(res.status).toBe(500)
+    expect(JSON.stringify(body)).not.toMatch(/relation|live_private_intervals|internal/)
+  })
+
   test('Skip: no rate and no username are sent to the database as NULL (never 0)', async () => {
     state.rpc.start_private_interval = { data: { id: 'p1', platform: 'BongaCams', username: null, rate_per_minute: null }, error: null }
     const { POST } = await import('../private/start/route.js')
