@@ -13,9 +13,9 @@
 -- A direct RPC call could therefore save private intervals that feed private
 -- earnings with no username, an invented platform, or an unbounded rate.
 --
--- STATUS: written 2026-11-11; NOT YET APPLIED to production (first attempt
--- timed out awaiting owner confirmation; nothing changed). Update this line
--- when applied.
+-- STATUS: APPLIED TO PRODUCTION 2026-11-11 (schema_migrations version
+-- 20261111041318). Verified after: only the 3-argument version remains, with
+-- unchanged grants (authenticated, service_role).
 --
 -- Safe to drop (verified 2026-11-11):
 --   * no app route, client code, or Chrome extension build calls it — the only
