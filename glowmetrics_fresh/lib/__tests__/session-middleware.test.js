@@ -6,7 +6,7 @@
 jest.mock('@supabase/ssr', () => ({ createServerClient: jest.fn() }))
 const { createServerClient } = require('@supabase/ssr')
 const { NextRequest } = require('next/server')
-const { middleware, config } = require('../../middleware')
+const { middleware, config, AUTH_REFRESH_TIMEOUT_MS } = require('../../middleware')
 
 const AUTH = 'sb-hlsdlaibnayzbfflxclj-auth-token'
 const req = (cookie) => new NextRequest('https://www.camcashgrl.com/api/live/session/start', {
@@ -44,6 +44,20 @@ test('an auth outage never blocks the request', async () => {
   expect(res.status).toBe(200)
   expect(res.headers.get('location')).toBeNull()
   console.error.mockRestore()
+})
+
+test('a hung Supabase is cut off at the timeout instead of hitting the 25s 504', async () => {
+  jest.useFakeTimers()
+  jest.spyOn(console, 'error').mockImplementation(() => {})
+  createServerClient.mockReturnValue({ auth: { getUser: () => new Promise(() => {}) } }) // never settles
+  const pending = middleware(req(`${AUTH}=old-token`))
+  await jest.advanceTimersByTimeAsync(AUTH_REFRESH_TIMEOUT_MS)
+  const res = await pending
+  expect(res.status).toBe(200)
+  expect(res.headers.get('location')).toBeNull()
+  expect(console.error).toHaveBeenCalledWith('Session refresh failed:', expect.stringContaining('timed out'))
+  console.error.mockRestore()
+  jest.useRealTimers()
 })
 
 test('matcher skips static files, webhooks and cron', () => {

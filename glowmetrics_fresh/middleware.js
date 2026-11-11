@@ -6,6 +6,8 @@ import { createServerClient } from '@supabase/ssr'
 // route handlers expired, getUser() fails, and signed-in users get 401s
 // (e.g. /api/live/session/start). It only refreshes; it never blocks or
 // redirects a request — each route still does its own auth check.
+export const AUTH_REFRESH_TIMEOUT_MS = 4000
+
 export async function middleware(request) {
   let response = NextResponse.next({ request })
 
@@ -32,12 +34,20 @@ export async function middleware(request) {
     }
   )
 
+  let timer
   try {
     // getUser() validates the token and triggers the refresh when it has expired.
-    await supabase.auth.getUser()
+    // Capped so a slow or down Supabase can't hold every page past Vercel's 25s
+    // limit (504 MIDDLEWARE_INVOCATION_TIMEOUT, seen 2026-11-11).
+    await Promise.race([
+      supabase.auth.getUser(),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`auth refresh timed out after ${AUTH_REFRESH_TIMEOUT_MS}ms`)), AUTH_REFRESH_TIMEOUT_MS) }),
+    ])
   } catch (err) {
     // An auth outage must not take the site down; the route's own check decides.
     console.error('Session refresh failed:', err?.message)
+  } finally {
+    clearTimeout(timer)
   }
 
   return response
