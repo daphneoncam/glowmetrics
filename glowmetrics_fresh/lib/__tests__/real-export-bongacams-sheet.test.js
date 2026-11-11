@@ -12,7 +12,7 @@
  */
 import fs from 'fs'
 import path from 'path'
-import { parseCSV } from '../analytics'
+import { parseCSV, aggregateRows } from '../analytics'
 
 const FILE = path.join(__dirname, 'fixtures/real-exports/bongacams-sheet-export-2026.anon.csv')
 const csv = fs.readFileSync(FILE, 'utf8')
@@ -61,6 +61,24 @@ describe('real BongaCams spreadsheet export', () => {
     expect(i).toBeGreaterThan(-1)
     const p = new Date(rows[i].date_time)
     expect([p.getFullYear(), p.getMonth() + 1, p.getDate()]).toEqual([2026, 2, 23])
+  })
+
+  // Payout is canonical; tokens x $0.025 is a separate comparison value.
+  // The source data differs by $5.35 (not rounding), so they must never mix.
+  test('payout, token value and source label stay distinct per row', () => {
+    rows.forEach((r) => {
+      expect(r.usd_source).toBe('payout')
+      expect(milli(r.usd_from_tokens)).toBe(r.tokens * 25)
+      expect(r.usd).not.toBe(undefined)
+    })
+    const diffMilli = rows.reduce((s, r) => s + milli(r.usd_from_tokens) - milli(r.usd), 0)
+    expect(diffMilli).toBe(65900 - 60550) // $5.35
+  })
+
+  test('the reporting engine totals the payout ($60.55), never the token value', () => {
+    const engine = aggregateRows(rows, 'UTC')
+    expect(milli(engine.totalUSD)).toBe(60550)
+    expect(milli(engine.totalUSD)).not.toBe(65900)
   })
 
   test('dates span the export', () => {
