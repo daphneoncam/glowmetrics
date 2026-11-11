@@ -81,8 +81,36 @@ const C = {
 }
 
 const TIER_COLORS = {
-  "Whale": C.gold, "Shark": C.blue, "Regular": C.cyan, "Dormant": C.orange
+  "Whale": C.gold, "Shark": C.blue, "Regular": C.cyan, "Occasional": C.indigo,
+  "New/Developing": C.green, "Dormant": C.orange
 }
+
+// Fans-tab filter pills. MUST list every tier identifyWhales() in
+// lib/analytics.js can assign — a tier missing here is only reachable via
+// "All" and its fans silently vanish from every other pill. Display-only:
+// the tier formula itself lives in identifyWhales() and is not changed here.
+const FAN_TIER_FILTERS = ["ALL", "Whale", "Shark", "Regular", "Occasional", "New/Developing", "Dormant"]
+const FAN_TIER_FILTER_LABELS = { "ALL": "All", "New/Developing": "New" }
+
+// Risk Signals toggle: a top spender (Whale/Shark tier) whose engine-computed
+// behavioralState is 'At Risk'. Reads identifyWhales() output only -- no new
+// threshold. 'At Risk' is already relative to the fan's own visit cadence and
+// is never assigned when the creator hasn't streamed meaningfully on that
+// platform (calcFanBehavioralState returns 'Dormant' instead), so a long
+// creator break can't trip this.
+const isTopSpenderAtRisk = (w) => (w.tier === 'Whale' || w.tier === 'Shark') && w.behavioralState === 'At Risk'
+
+// Shown in the Risk Signals upgrade modal. Each line maps to an item on the
+// Pro plan list in app/pricing/PricingClient.js -- do not add claims here
+// that the pricing page (and the product) doesn't back.
+const PRO_FAN_INTEL_FEATURES = [
+  { icon: "🚨", title: "Deeper fan risk signals", text: "Flags a top spender when they break from their own personal tipping rhythm." },
+  { icon: "💌", title: "Churn & re-engagement insights", text: "See who is drifting, why, and when to reach out." },
+  { icon: "🐳", title: "Full fan profiles & CRM tools", text: "Every fan, not just your top 3, with notes and history." },
+  { icon: "📈", title: "Complete historical trend analysis", text: "Spot fans warming up or cooling off over time." },
+  { icon: "🗂️", title: "Full permanent history", text: "On every platform, so patterns are built from your real history, not 31 days." },
+  { icon: "🌐", title: "Cross-platform comparisons", text: "See how your fans and earnings stack up across every platform." },
+]
 
 // Rotating microcopy shown on the CSV importer button/progress bar while a
 // real upload request is in flight — purely cosmetic (doesn't imply we know
@@ -1455,6 +1483,12 @@ export default function Dashboard() {
   const [toast, setToast] = useState("")
   const [uploadCount, setUploadCount] = useState(0)
   const [whaleFilter, setWhaleFilter] = useState("ALL")
+  // Risk Signals toggle (Fans tab). Pro: filters to top spenders off their
+  // own pattern. Free: opens the Unlock Risk Signals modal instead -- free
+  // plans only analyze 31 days on secondary platforms, too thin for reliable
+  // per-fan rhythm signals.
+  const [riskOnly, setRiskOnly] = useState(false)
+  const [showRiskUpgrade, setShowRiskUpgrade] = useState(false)
   const [platformFilter, setPlatformFilter] = useState("ALL")
   const [showAllLeaderboard, setShowAllLeaderboard] = useState(false) // Fans tab Leaderboard "Show More" toggle
   const [meaningfulOnly, setMeaningfulOnly] = useState(true)
@@ -1476,6 +1510,13 @@ export default function Dashboard() {
   // passive effect runs, the modal's autoFocus has already moved focus onto
   // the close button, so reading activeElement here would just capture that.
   const whaleModalTriggerRef = useRef(null)
+  // Escape closes the Unlock Risk Signals modal.
+  useEffect(() => {
+    if (!showRiskUpgrade) return
+    const onKeyDown = (e) => { if (e.key === "Escape") setShowRiskUpgrade(false) }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [showRiskUpgrade])
   useEffect(() => {
     if (selectedWhale) {
       const onKeyDown = (e) => { if (e.key === "Escape") setSelectedWhale(null) }
@@ -2595,8 +2636,9 @@ const stopImportMessageRotation = () => {
     return pt
   })
 
-  const filteredWhales = memoOn(derivedCacheRef.current, 'filteredWhales', [whales, whaleFilter, platformFilter, chartDrillDay, tips], () => whales.filter(w => {
+  const filteredWhales = memoOn(derivedCacheRef.current, 'filteredWhales', [whales, whaleFilter, platformFilter, chartDrillDay, tips, riskOnly, isPro], () => whales.filter(w => {
     if (whaleFilter !== "ALL" && w.tier !== whaleFilter) return false
+    if (riskOnly && isPro && !isTopSpenderAtRisk(w)) return false
     if (platformFilter !== "ALL" && w.platform !== platformFilter) return false
     if (chartDrillDay) {
       const fanTips = (w.tips && w.tips.length > 0) ? w.tips : tips.filter(t => t.username?.toLowerCase() === w.username?.toLowerCase())
@@ -3138,6 +3180,10 @@ const stopImportMessageRotation = () => {
         .whale-row { transition: background 0.15s, transform 0.12s ease; }
         .whale-row:hover { background: rgba(59,130,246,0.08) !important; transform: translateX(2px); }
         @keyframes pulse-msg { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.25); } }
+        @keyframes riskPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(1.35); } }
+        .risk-pulse-dot { animation: riskPulse 1.6s ease-in-out infinite; }
+        .risk-toggle:hover { transform: translateY(-1px); }
+        @media (prefers-reduced-motion: reduce) { .risk-pulse-dot { animation: none; } }
         @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
         @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -4226,13 +4272,13 @@ const stopImportMessageRotation = () => {
                 narrow screens instead of clipping options past the viewport edge */}
             <div style={{ display: "flex", gap: 10, marginTop: 14, marginBottom: 16, flexWrap: "wrap", maxWidth: "100%" }}>
               <div style={{ display: "flex", gap: 2, background: "rgba(255,255,255,0.03)", padding: 3, borderRadius: 10, border: "1px solid rgba(255,255,255,0.08)", overflowX: "auto", maxWidth: "100%", WebkitOverflowScrolling: "touch" }}>
-                {["ALL","Whale","Shark","Regular","Dormant"].map(t => {
+                {FAN_TIER_FILTERS.map(t => {
                   const count = t === "ALL" ? whales.length : whales.filter(w => w.tier === t).length
                   const active = whaleFilter === t
                   return (
                     <button key={t} className="tier-filter-btn" onClick={() => setWhaleFilter(t)}
                       style={{ padding: "6px 12px", borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none", flexShrink: 0, whiteSpace: "nowrap", background: active ? "linear-gradient(135deg, #22D3EE, #EC4899)" : "transparent", color: active ? "#06101A" : C.text }}>
-                      {t === "ALL" ? "All" : t}
+                      {FAN_TIER_FILTER_LABELS[t] || t}
                       <span style={{ marginLeft: 5, fontSize: 10, fontWeight: 700, opacity: active ? 0.75 : 0.6 }}>{count}</span>
                     </button>
                   )
@@ -4245,6 +4291,45 @@ const stopImportMessageRotation = () => {
                   ))}
                 </div>
               )}
+              {/* RISK SIGNALS TOGGLE — Pro: show only top spenders off their
+                  own tipping pattern (isTopSpenderAtRisk). Free: flips on
+                  visually and opens the Unlock Risk Signals modal. */}
+              {(() => {
+                const on = isPro ? riskOnly : showRiskUpgrade
+                return (
+                  <button
+                    role="switch"
+                    aria-checked={on}
+                    aria-label="Risk signals: show only top spenders who have broken their usual tipping pattern"
+                    className={`risk-toggle${on ? ' risk-toggle-on' : ''}`}
+                    onClick={() => {
+                      if (isPro) {
+                        const next = !riskOnly
+                        setRiskOnly(next)
+                        track('risk_signals_toggle', { on: next })
+                      } else {
+                        track('upgrade_click', { source: 'risk_signals_toggle' })
+                        gtmTrack('paywall_hit', { feature: 'risk_signals_toggle' })
+                        setShowRiskUpgrade(true)
+                      }
+                    }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 9, padding: "5px 14px 5px 6px", borderRadius: 100, cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap",
+                      background: on ? "linear-gradient(90deg, rgba(22,244,255,0.16), rgba(124,92,255,0.16), rgba(255,43,174,0.2))" : "rgba(255,255,255,0.03)",
+                      border: on ? "1px solid rgba(255,43,174,0.6)" : "1px solid rgba(255,255,255,0.1)",
+                      boxShadow: on ? "0 0 18px rgba(22,244,255,0.25), 0 0 26px rgba(255,43,174,0.28)" : "none",
+                      color: on ? C.white : C.text, fontSize: 12, fontWeight: 800, transition: "all .25s ease",
+                    }}>
+                    <span aria-hidden="true" style={{ position: "relative", width: 34, height: 20, borderRadius: 100, flexShrink: 0, transition: "background .25s ease",
+                      background: on ? "linear-gradient(90deg, #16F4FF 0%, #7C5CFF 48%, #FF2BAE 100%)" : "rgba(255,255,255,0.12)" }}>
+                      <span style={{ position: "absolute", top: 2, left: on ? 16 : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left .25s ease",
+                        boxShadow: on ? "0 0 10px rgba(255,255,255,0.8)" : "0 1px 3px rgba(0,0,0,0.4)" }} />
+                    </span>
+                    🚨 Risk Signals
+                    {!isPro && <span style={{ fontSize: 9, fontWeight: 800, color: C.gold, border: `1px solid ${C.gold}55`, borderRadius: 100, padding: "1px 6px" }}>PRO</span>}
+                  </button>
+                )
+              })()}
             </div>
 
             {/* RISK CONTEXT BANNER(S) — surfaces Risk Signals Paused / Data
@@ -4257,18 +4342,32 @@ const stopImportMessageRotation = () => {
                 .map(p => ctx[p])
                 .filter(c => c && (c.riskSignalsPaused || c.dataNeedsUpdating))
               if (!flagged.length) return null
+              // One combined notice instead of one card per platform. Same
+              // per-platform flags as before; only the presentation changed.
+              const paused = flagged.filter(c => c.riskSignalsPaused)
+              const stale = flagged.filter(c => !c.riskSignalsPaused && c.dataNeedsUpdating)
+              const joinNames = (arr) => arr.map(c => c.platform).join(', ')
+              const onlyPaused = stale.length === 0
               return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-                  {flagged.map(c => (
-                    <div key={c.platform} style={{ padding: '10px 14px', borderRadius: 10, background: c.riskSignalsPaused ? 'rgba(148,163,184,0.08)' : 'rgba(245,158,11,0.08)', border: `1px solid ${c.riskSignalsPaused ? 'rgba(148,163,184,0.25)' : 'rgba(245,158,11,0.3)'}`, fontSize: 12, color: C.text }}>
-                      <strong style={{ color: c.riskSignalsPaused ? C.muted : C.gold }}>{c.riskSignalsPaused ? `Risk Signals Paused — ${c.platform}` : `Data Needs Updating — ${c.platform}`}</strong>
+                <div style={{ padding: '10px 14px', borderRadius: 10, marginBottom: 16, fontSize: 12, color: C.text,
+                  background: onlyPaused ? 'rgba(148,163,184,0.08)' : 'rgba(245,158,11,0.08)',
+                  border: `1px solid ${onlyPaused ? 'rgba(148,163,184,0.25)' : 'rgba(245,158,11,0.3)'}` }}>
+                  {paused.length > 0 && (
+                    <div>
+                      <strong style={{ color: C.text }}>Risk Signals Paused — {joinNames(paused)}</strong>
                       <div style={{ marginTop: 2, color: C.muted }}>
-                        {c.riskSignalsPaused
-                          ? "You haven't had a meaningful stream here recently, so CamCash isn't labeling inactive fans as at risk."
-                          : `Your ${c.platform} fan data is ${c.dataAgeDays ?? '?'} days old, so current fan behavior may not be complete.`}
+                        You haven't had a meaningful stream {paused.length > 1 ? 'on these platforms' : 'here'} recently, so CamCash isn't labeling inactive fans as at risk.
                       </div>
                     </div>
-                  ))}
+                  )}
+                  {stale.length > 0 && (
+                    <div style={{ marginTop: paused.length > 0 ? 8 : 0 }}>
+                      <strong style={{ color: C.gold }}>Data Needs Updating — {joinNames(stale)}</strong>
+                      <div style={{ marginTop: 2, color: C.muted }}>
+                        {stale.map(c => `${c.platform}: ${c.dataAgeDays ?? '?'} days old`).join(' · ')}. Current fan behavior may not be complete.
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })()}
@@ -4279,8 +4378,8 @@ const stopImportMessageRotation = () => {
             {filteredWhales.length === 0 ? (
               <div style={{ ...glassCard, borderRadius: 14, padding: 32, textAlign: 'center', marginBottom: 20 }}>
                 <div style={{ fontSize: 32, marginBottom: 12 }}>🔍</div>
-                <div style={{ fontSize: 15, color: C.text, fontWeight: 600, marginBottom: 4 }}>No fans match this filter</div>
-                <div style={{ fontSize: 12, color: C.text }}>Try a different tier or clear the platform filter</div>
+                <div style={{ fontSize: 15, color: C.text, fontWeight: 600, marginBottom: 4 }}>{riskOnly && isPro ? 'No top spenders are off their pattern right now' : 'No fans match this filter'}</div>
+                <div style={{ fontSize: 12, color: C.text }}>{riskOnly && isPro ? 'Risk Signals will flag a Whale or Shark here when they break from their usual tipping rhythm.' : 'Try a different tier or clear the platform filter'}</div>
               </div>
             ) : (
               <div style={{ ...glassCard, borderRadius: 14, padding: 18, marginBottom: 20 }}>
@@ -6572,7 +6671,7 @@ const stopImportMessageRotation = () => {
         // guarded below rather than assumed to exist.
         const daysSinceLastTip = w.lastTipDate ? Math.floor((Date.now() - new Date(w.lastTipDate)) / 86400000) : null
         const tierColor = TIER_COLORS[w.tier] || C.cyan
-        const tierIcon = w.tier === 'Whale' ? '💎' : w.tier === 'Shark' ? '🦈' : w.tier === 'Regular' ? '⭐' : '💤'
+        const tierIcon = w.tier === 'Whale' ? '💎' : w.tier === 'Shark' ? '🦈' : w.tier === 'Regular' ? '⭐' : w.tier === 'Occasional' ? '🔄' : w.tier === 'New/Developing' ? '🌱' : '💤'
         // Reuse the shared churn-risk formula (w.churnRisk) from analytics.js —
         // same fix as the card grid — instead of a second local calculation.
         const churnRisk = w.churnRisk?.level && w.churnRisk.level !== "Unknown" ? w.churnRisk.level : null
@@ -6916,6 +7015,65 @@ const stopImportMessageRotation = () => {
       })()}
 
       {/* UPGRADE MODAL */}
+      {/* UNLOCK RISK SIGNALS MODAL — opened by the Fans-tab Risk Signals
+          toggle on free plans. Urgent header strip, calm body, real Pro
+          features only (PRO_FAN_INTEL_FEATURES mirrors the pricing page). */}
+      {showRiskUpgrade && (
+        <div role="dialog" aria-modal="true" aria-labelledby="risk-upgrade-title" onClick={() => setShowRiskUpgrade(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(3,5,14,0.82)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "min(560px, 100%)", maxHeight: "calc(100vh - 32px)", overflowY: "auto", borderRadius: 26, padding: 1,
+            background: "linear-gradient(135deg, rgba(22,244,255,0.9), rgba(124,92,255,0.5), rgba(255,43,174,0.9))",
+            boxShadow: "-20px 0 70px rgba(22,244,255,0.18), 20px 0 70px rgba(255,43,174,0.22), 0 28px 90px rgba(0,0,0,0.55)" }}>
+            <div style={{ borderRadius: 25, overflow: "hidden",
+              background: "radial-gradient(circle at 12% 0%, rgba(22,244,255,0.14), transparent 40%), radial-gradient(circle at 92% 18%, rgba(255,43,174,0.16), transparent 42%), #080B1A" }}>
+              {/* slightly urgent strip */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 22px", background: "linear-gradient(90deg, rgba(255,43,174,0.22), rgba(248,113,113,0.12))", borderBottom: "1px solid rgba(255,43,174,0.3)" }}>
+                <span className="risk-pulse-dot" aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: "#FF2BAE", boxShadow: "0 0 10px #FF2BAE", flexShrink: 0 }} />
+                <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "#FFD1EC" }}>Your top spenders aren't being watched</span>
+              </div>
+              <div style={{ padding: "26px 26px 22px" }}>
+                <div style={{ textAlign: "center", marginBottom: 22 }}>
+                  <h2 id="risk-upgrade-title" style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1, color: "#fff", margin: "0 0 10px" }}>
+                    Unlock Risk Signals
+                  </h2>
+                  <p style={{ fontSize: 14, color: "#D7D9EA", lineHeight: 1.55, margin: 0 }}>
+                    Risk Signals learn each top spender's personal tipping rhythm and tell you when one goes quiet, so you can reach out before they're gone.
+                  </p>
+                  <p style={{ fontSize: 12, color: "#8D93AA", lineHeight: 1.5, margin: "10px 0 0" }}>
+                    Free plans only analyze 31 days on secondary platforms, which isn't enough history to read a fan's pattern reliably. And if you take a break from streaming, signals pause on their own.
+                  </p>
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: C.cyan, marginBottom: 10 }}>
+                  Fan intelligence in Pro
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 22 }}>
+                  {PRO_FAN_INTEL_FEATURES.map(f => (
+                    <div key={f.title} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "11px 14px", borderRadius: 14, background: "rgba(13,17,38,0.72)", border: "1px solid rgba(255,255,255,0.09)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }}>
+                      <span aria-hidden="true" style={{ fontSize: 17, lineHeight: 1.2 }}>{f.icon}</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>{f.title}</div>
+                        <div style={{ fontSize: 12, color: "#8D93AA", lineHeight: 1.45, marginTop: 2 }}>{f.text}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  as="a"
+                  href="/pricing"
+                  onClick={() => gtmTrack('upgrade_to_pro_clicked', { source: 'risk_signals_modal' })}
+                  style={{ width: "100%", padding: "15px", borderRadius: 18, fontSize: 16, marginBottom: 10, boxSizing: "border-box" }}>
+                  Upgrade to Pro →
+                </Button>
+                <div style={{ textAlign: "center", fontSize: 12, color: "#8D93AA", marginBottom: 14 }}>$9.99/month or $99/year</div>
+                <button onClick={() => setShowRiskUpgrade(false)} style={{ width: "100%", padding: "10px", borderRadius: 12, background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "#8D93AA", fontSize: 13, cursor: "pointer" }}>
+                  Maybe later
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showUpgradeModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1002, padding: 20 }}>
           <div style={{ width: 480, background: "rgba(15,20,32,0.97)", backdropFilter: "blur(24px)", borderRadius: 24, border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 0 80px rgba(59,130,246,0.2), 0 0 160px rgba(236,72,153,0.1)", overflow: "hidden" }}>
