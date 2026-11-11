@@ -4184,8 +4184,11 @@ const stopImportMessageRotation = () => {
           <PlatformsIntelligence
             analytics={analytics}
             tips={accessible.tips}
+            shows={accessible.shows}
+            tz={creatorTz}
             isPro={isPro}
             onOpenPlanner={() => handleTabChange('planner')}
+            onGoLive={() => handleTabChange('live')}
           />
         )}
 
