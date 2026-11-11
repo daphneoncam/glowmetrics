@@ -24,7 +24,7 @@ const NAV = [
   {
     group: "SESSIONS",
     items: [
-      { id: "sessions", icon: "🎥", label: "Free Chat Sessions" },
+      { id: "sessions", icon: "🎥", label: "Sessions" },
       { id: "live",     icon: "🔴", label: "Live Mode Sessions" },
     ]
   },
@@ -41,7 +41,6 @@ const NAV = [
       { id: "titles",    icon: "🎬", label: "Room Titles" },
       { id: "calc",      icon: "🪙", label: "Token Calc"  },
       { id: "data",      icon: "📝", label: "Edit Data" },
-      { id: "analytics", icon: "📊", label: "Analytics" },
       { id: "planner",   icon: "🗓️", label: "Stream Planner" },
       { id: "moneymap",  icon: "🗺️", label: "Money Map" },
     ]

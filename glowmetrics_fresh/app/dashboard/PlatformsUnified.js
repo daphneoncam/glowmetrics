@@ -199,13 +199,45 @@ export default function PlatformsUnified({ analytics, tips = [], shows = [], tz 
 
   const days = effectiveRangeDays(selected, isPro)
   const clamped = days < selected
-  const range = useMemo(() => rangeBounds(days, now), [days, now])
-  const prior = useMemo(() => ({ start: range.start - days * DAY, end: range.start }), [range, days])
+  // Each platform's window ends at its OWN latest tip (when that is before today),
+  // the same per-platform rule Free history uses (lib/analytics.js applyFreeAnalysisWindow).
+  // A window ending "today" is empty for any platform whose last tip is in the past.
+  const latestByPlatform = useMemo(() => {
+    const out = {}
+    for (const t of tips) {
+      const ms = new Date(t.date_time || t.dateRaw).getTime()
+      if (isNaN(ms)) continue
+      const p = t.platform || 'unknown'
+      if (out[p] === undefined || ms > out[p]) out[p] = ms
+    }
+    return out
+  }, [tips])
+  const anchorFor = (p) => { const l = latestByPlatform[p || 'unknown']; return l !== undefined && l < now ? l : now }
+  const anchors = Object.keys(latestByPlatform).map(anchorFor)
+  const minAnchor = anchors.length ? Math.min(...anchors) : now
+  const maxAnchor = anchors.length ? Math.max(...anchors) : now
+  const anchored = minAnchor !== now || maxAnchor !== now
+  // Tips inside each platform's own window (current and prior period).
+  const windowedTips = useMemo(() => tips.filter((t) => {
+    const ms = new Date(t.date_time || t.dateRaw).getTime()
+    if (isNaN(ms)) return false
+    const a = anchorFor(t.platform)
+    return ms >= a - days * DAY && ms <= a
+  }), [tips, days, latestByPlatform, now])
+  const priorTips = useMemo(() => tips.filter((t) => {
+    const ms = new Date(t.date_time || t.dateRaw).getTime()
+    if (isNaN(ms)) return false
+    const a = anchorFor(t.platform)
+    return ms >= a - 2 * days * DAY && ms < a - days * DAY
+  }), [tips, days, latestByPlatform, now])
+  // Envelope ranges for the helpers; per-platform bounds are applied by the filters above.
+  const range = useMemo(() => ({ start: minAnchor - days * DAY, end: maxAnchor }), [minAnchor, maxAnchor, days])
+  const prior = useMemo(() => ({ start: minAnchor - 2 * days * DAY, end: maxAnchor - days * DAY }), [minAnchor, maxAnchor, days])
 
   // Range-filtered engine totals (the same aggregation the page uses), for the
   // platform rows. Pro only gets a prior period, since Free has no earlier data.
-  const rangeAnalytics = useMemo(() => { const t = tipsInRange(tips, range); return t.length ? aggregateRows(t, tz) : null }, [tips, range, tz])
-  const priorAnalytics = useMemo(() => { if (!isPro) return null; const t = tipsInRange(tips, prior); return t.length ? aggregateRows(t, tz) : null }, [tips, prior, tz, isPro])
+  const rangeAnalytics = useMemo(() => { const t = tipsInRange(windowedTips, range); return t.length ? aggregateRows(t, tz) : null }, [windowedTips, range, tz])
+  const priorAnalytics = useMemo(() => { if (!isPro) return null; const t = tipsInRange(priorTips, prior); return t.length ? aggregateRows(t, tz) : null }, [priorTips, prior, tz, isPro])
   const snapshot = useMemo(() => buildBusinessSnapshot(rangeAnalytics), [rangeAnalytics])
   const priorSnapshot = useMemo(() => buildBusinessSnapshot(priorAnalytics), [priorAnalytics])
   const comparison = useMemo(() => buildPlatformComparison(rangeAnalytics), [rangeAnalytics])
@@ -214,15 +246,15 @@ export default function PlatformsUnified({ analytics, tips = [], shows = [], tz 
   const noticed = useMemo(() => buildCamCashNoticed(rangeAnalytics), [rangeAnalytics])
 
   // Verified streaming (Live Mode only) and per-platform history.
-  const series = useMemo(() => monthlySeries({ tips, shows, tz, range }), [tips, shows, tz, range])
+  const series = useMemo(() => monthlySeries({ tips: windowedTips, shows, tz, range }), [windowedTips, shows, tz, range])
   const totals = useMemo(() => verifiedTotals({ shows, range }), [shows, range])
-  const windows = useMemo(() => threeHourWindows({ tips, shows, tz, range }), [tips, shows, tz, range])
-  const audience = useMemo(() => audienceCounts({ tips, periodStart: range.start, periodEnd: range.end }), [tips, range])
-  const priorAudience = useMemo(() => (isPro ? audienceCounts({ tips, periodStart: prior.start, periodEnd: prior.end }) : null), [tips, prior, isPro])
+  const windows = useMemo(() => threeHourWindows({ tips: windowedTips, shows, tz, range }), [windowedTips, shows, tz, range])
+  const audience = useMemo(() => audienceCounts({ tips: windowedTips, periodStart: range.start, periodEnd: range.end }), [windowedTips, range])
+  const priorAudience = useMemo(() => (isPro ? audienceCounts({ tips: priorTips, periodStart: prior.start, periodEnd: prior.end }) : null), [priorTips, prior, isPro])
 
   // Records and milestones. Pro: full history. Free: ONLY the Free reporting
   // window (same rows as every other Free figure) — never older entitled history.
-  const recordTips = useMemo(() => (isPro ? tips : tipsInRange(tips, range)), [isPro, tips, range])
+  const recordTips = useMemo(() => (isPro ? tips : windowedTips), [isPro, tips, windowedTips])
   const dailyHigh = useMemo(() => allTimeDailyHigh({ tips: recordTips, tz }), [recordTips, tz])
   const streak = useMemo(() => growthStreak({ tips: recordTips, tz, nowMs: now }), [recordTips, tz, now])
   const milestone = useMemo(() => audienceMilestone({ tips: recordTips }), [recordTips])
@@ -257,7 +289,7 @@ export default function PlatformsUnified({ analytics, tips = [], shows = [], tz 
       {/* Reporting period (selector really filters everything below except records) */}
       <div className={S.toolbar}>
         <span className={S.periodNote} data-testid="pu-period-note">
-          {clamped ? `Free shows the last ${FREE_WINDOW_DAYS} days. Pro unlocks 90-day history and comparisons.` : isPro ? `Showing ${days} days · comparisons vs the prior ${days} days` : `Showing ${days} days · Pro adds comparisons vs prior periods`}
+          {(clamped ? `Free shows the last ${FREE_WINDOW_DAYS} days. Pro unlocks 90-day history and comparisons.` : isPro ? `Showing ${days} days · comparisons vs the prior ${days} days` : `Showing ${days} days · Pro adds comparisons vs prior periods`) + (anchored ? " · each platform ends at its own latest tip" : '')}
         </span>
       </div>
 

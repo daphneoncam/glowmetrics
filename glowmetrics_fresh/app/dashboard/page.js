@@ -2547,9 +2547,12 @@ const stopImportMessageRotation = () => {
       tips, paidSessions, liveIntervals: livePrivateIntervals, shows: recentShows.shows,
       isPro, unlimitedPlatform: freeUnlimitedPlatform,
     }))
+  // All-time earnings: the Free analysis window limits analysis only, not the
+  // account's own totals. Public = every tip on file; private = every private row.
+  const allTimePublicUSD = (tips || []).reduce((sum, t) => sum + (Number(t.usd) || 0), 0)
   const earned = totalEarned({
-    publicUSD: analytics?.totalUSD || 0,
-    privateRows: privateEarningRows({ paidSessions: accessible.paidSessions, liveIntervals: accessible.liveIntervals }),
+    publicUSD: allTimePublicUSD,
+    privateRows: privateEarningRows({ paidSessions: paidSessions || [], liveIntervals: livePrivateIntervals || [] }),
   })
   const totalRevenue = analytics?.totalUSD || 0 // public tips only (shares, per-session averages)
   const totalEarnedUSD = earned.totalUSD        // header / share card: public + private
