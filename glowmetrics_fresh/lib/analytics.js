@@ -10,21 +10,51 @@ import { PLATFORM_TOKEN_RATES, DEFAULT_TOKEN_RATE, tokenRate, canonicalPlatform,
 // columns were misread (e.g. a year parsed as tokens); the row is rejected.
 export const USD_MISMATCH_FACTOR = 5
 
+// True only for a platform with an established token rate (lib/constants.js).
+// 'Unknown' and unrecognised names never borrow another platform's rate.
+export function hasKnownTokenRate(platform) {
+  const c = canonicalPlatform(platform)
+  return !!c && PLATFORM_TOKEN_RATES[c] != null
+}
+
 // USD for one imported row, at the 4-decimal precision tips.usd stores (never
-// rounded to cents per tip). The platform's own payout column is kept when the
-// export has one (real BongaCams payouts vary per token); otherwise tokens x
-// the platform rate (lib/constants.js tokensToUsd). Returns null when a payout
-// contradicts its tokens by more than USD_MISMATCH_FACTOR (misread columns),
-// so callers skip the row instead of storing it.
-export function resolveRowUsd(tokens, csvUsd, platform) {
+// rounded to cents per tip). Keeps the actual payout and the token-derived
+// value side by side so they can be audited; they are never interchanged.
+//   source 'payout'     - the export's own USD payout (kept as supplied)
+//   source 'tokens'     - no payout: tokens x the platform's established rate
+//   source 'unresolved' - tokens only, platform has no known rate: no USD is
+//                         invented (usd 0, must not be stored as earnings)
+//   source 'rejected'   - payout contradicts tokens x rate by more than
+//                         USD_MISMATCH_FACTOR (misread columns): skip the row
+//   source 'none'       - neither tokens nor a payout
+// usdFromTokens is null when the platform has no known rate.
+export function resolveRowUsdDetail(tokens, csvUsd, platform) {
   const t = Number(tokens) || 0
   const u = Number(csvUsd) || 0
-  if (t > 0) {
-    const fromTokens = tokensToUsd(t, platform)
-    if (u <= 0) return fromTokens
-    if (u > fromTokens * USD_MISMATCH_FACTOR || u * USD_MISMATCH_FACTOR < fromTokens) return null
+  const usdFromTokens = t > 0 && hasKnownTokenRate(platform) ? tokensToUsd(t, platform) : null
+  if (u > 0) {
+    if (usdFromTokens !== null && (u > usdFromTokens * USD_MISMATCH_FACTOR || u * USD_MISMATCH_FACTOR < usdFromTokens)) {
+      return { usd: null, source: 'rejected', usdFromTokens }
+    }
+    return { usd: Math.round(u * 1e4) / 1e4, source: 'payout', usdFromTokens }
   }
-  return u > 0 ? Math.round(u * 1e4) / 1e4 : 0
+  if (usdFromTokens !== null) return { usd: usdFromTokens, source: 'tokens', usdFromTokens }
+  if (t > 0) return { usd: 0, source: 'unresolved', usdFromTokens: null }
+  return { usd: 0, source: 'none', usdFromTokens: null }
+}
+
+// USD only. null = rejected row (callers skip it).
+export function resolveRowUsd(tokens, csvUsd, platform) {
+  const d = resolveRowUsdDetail(tokens, csvUsd, platform)
+  return d.source === 'rejected' ? null : d.usd
+}
+
+// Audit fields carried on every parsed row (not stored as columns).
+const usdAudit = (d) => ({ usd_source: d.source, usd_from_tokens: d.usdFromTokens })
+
+// Tokens implied by a payout-only row, only when the platform rate is known.
+function tokensFromPayout(usd, platform) {
+  return hasKnownTokenRate(platform) && usd > 0 ? Math.round(usd / tokenRate(platform)) : 0
 }
 // Session grouping lives in ONE place — lib/analytics/sessions.js
 // Shared with app/live/page.js. Do not redefine this logic here.
@@ -220,7 +250,7 @@ function parseChaturbateMultiLine(lines) {
         if (fanClubMatch) note = note ? `Fan Club Membership: ${note}` : 'Fan Club Membership'
         results.push({
           dateRaw, date_time: dateRaw, username, platform: 'Chaturbate',
-          tokens, usd: tokensToUsd(tokens, 'Chaturbate'),
+          tokens, usd: tokensToUsd(tokens, 'Chaturbate'), ...usdAudit(resolveRowUsdDetail(tokens, 0, 'Chaturbate')),
           tip_type: privateMatch ? 'Private Show' : fanClubMatch ? 'Membership' : saleMatch ? 'Other Sale' : 'Tip', tip_note: note,
           ...(privateMatch ? { is_paid_session: true, session_type: 'Private Show' } : {}),
         })
@@ -361,8 +391,11 @@ function joinStackedHeaderLines(lines, delimiter) {
 
 function normalizeTip(row) {
   const tokens = parseInt(row.tokens) || 0
-  const usd = resolveRowUsd(tokens, parseFloat(row.usd) || 0, row.platform)
-  if (usd === null) return null
+  // A row already priced from tokens is re-checked from tokens, not as a payout.
+  const csvUsd = row.usd_source === 'tokens' || row.usd_source === 'unresolved' ? 0 : (parseFloat(row.usd) || 0)
+  const detail = resolveRowUsdDetail(tokens, csvUsd, row.platform)
+  if (detail.source === 'rejected') return null
+  const usd = detail.usd
   const dateRaw = normalizeDate(row.dateRaw || row.date_time || '')
   const parsedDate = new Date(dateRaw)
   if (isNaN(parsedDate.getTime())) return null
@@ -371,6 +404,7 @@ function normalizeTip(row) {
     username: (row.username || '').toLowerCase().trim(),
     tokens,
     usd,
+    ...usdAudit(detail),
     dateRaw,
     date_time: dateRaw,
   }
@@ -535,7 +569,16 @@ function parseWithHeaders(lines, platform, delimiter = ',') {
     if (!line) continue
     const vals = parseCSVLine(line, delimiter)
     const row = {}
-    headers.forEach((h, idx) => { row[h] = (vals[idx] ?? '').trim() })
+    // Repeated header names (e.g. a spreadsheet with two "Tokens" columns, or
+    // a second, empty table to the right repeating DATE/USERNAME/USD) must not
+    // erase a value already read: a blank never replaces a filled cell, and for
+    // tokens/usd a numeric cell replaces a non-numeric one ("Tips" vs "1").
+    const isNumericCell = (v) => /^-?\$?\s*[\d.,\s]+$/.test(v) && /\d/.test(v)
+    headers.forEach((h, idx) => {
+      const v = (vals[idx] ?? '').trim()
+      if (!(h in row) || row[h] === '') { row[h] = v; return }
+      if (v !== '' && (h === 'tokens' || h === 'usd') && !isNumericCell(row[h]) && isNumericCell(v)) row[h] = v
+    })
 
     const action = (row.action || '')
     const actionLower = action.toLowerCase()
@@ -608,16 +651,17 @@ function parseWithHeaders(lines, platform, delimiter = ',') {
     // - BongaCams: checked via Chat Type column values
     // - Chaturbate: checked via Action field prefix "Private Show:"
     // - MyFreeCams: checked via Type column value "Private"
-    const rowUsd = resolveRowUsd(tokens, usd, rowPlatform || 'Unknown')
-    if (rowUsd === null) continue
+    const rowUsdDetail = resolveRowUsdDetail(tokens, usd, rowPlatform || 'Unknown')
+    if (rowUsdDetail.source === 'rejected') continue
     const isPaidSession = bcPaidChatType || cbIsPrivateShow || mfcIsPrivate
     const sessionTypeValue = bcPaidChatType || (cbIsPrivateShow ? 'Private Show' : (mfcIsPrivate ? 'Private' : null))
 
     results.push({
       dateRaw, date_time: dateRaw, username,
       platform: rowPlatform || 'Unknown',
-      tokens: tokens > 0 ? tokens : Math.round(usd / tokenRate(rowPlatform)),
-      usd: rowUsd,
+      tokens: tokens > 0 ? tokens : tokensFromPayout(usd, rowPlatform),
+      usd: rowUsdDetail.usd,
+      ...usdAudit(rowUsdDetail),
       tip_type: sessionTypeValue || ((/membership|fan club/i.test(action + ' ' + tipType) || /^Fan Club Membership(?::|$)/i.test(row.note || row.tip_note || '')) ? 'Membership' : /sale|snapchat|social/i.test(action + ' ' + tipType) ? 'Other Sale' : 'Tip'),
       tip_note: row.note || row.tip_note || '',
       // Paid-chat/spy-mode/private-show rows must be routed to paid_sessions, not tips —
@@ -645,7 +689,7 @@ function parseHeaderless(lines, platform, delimiter = ',') {
       if (!username || tokens <= 0) continue
       if (vals[1].toLowerCase().includes('transfer') || vals[1].toLowerCase().includes('cash')) continue
       if (!dateRaw || isNaN(new Date(dateRaw).getTime())) continue
-      results.push({ dateRaw, date_time: dateRaw, username, platform: 'Chaturbate', tokens, usd: tokensToUsd(tokens, 'Chaturbate'), tip_type: 'Tip', tip_note: '' })
+      results.push({ dateRaw, date_time: dateRaw, username, platform: 'Chaturbate', tokens, usd: tokensToUsd(tokens, 'Chaturbate'), ...usdAudit(resolveRowUsdDetail(tokens, 0, 'Chaturbate')), tip_type: 'Tip', tip_note: '' })
       continue
     }
 
@@ -656,9 +700,9 @@ function parseHeaderless(lines, platform, delimiter = ',') {
       const usd = parseFloat((vals[4] || '').replace(/[$,]/g, '')) || 0
       if (!username || (tokens <= 0 && usd <= 0)) continue
       if (!dateRaw || isNaN(new Date(dateRaw).getTime())) continue
-      const bcUsd = resolveRowUsd(tokens, usd, platform || 'BongaCams')
-      if (bcUsd === null) continue
-      results.push({ dateRaw, date_time: dateRaw, username, platform: platform || 'BongaCams', tokens: tokens > 0 ? tokens : Math.round(usd / tokenRate(platform || 'BongaCams')), usd: bcUsd, tip_type: vals[2] || 'Tip', tip_note: '' })
+      const bcDetail = resolveRowUsdDetail(tokens, usd, platform || 'BongaCams')
+      if (bcDetail.source === 'rejected') continue
+      results.push({ dateRaw, date_time: dateRaw, username, platform: platform || 'BongaCams', tokens: tokens > 0 ? tokens : tokensFromPayout(usd, platform || 'BongaCams'), usd: bcDetail.usd, ...usdAudit(bcDetail), tip_type: vals[2] || 'Tip', tip_note: '' })
       continue
     }
 
@@ -679,7 +723,7 @@ function parseHeaderless(lines, platform, delimiter = ',') {
       const isPrivate = typeVal.toLowerCase() === MFC_PRIVATE_TYPE.toLowerCase()
       results.push({
         dateRaw, date_time: dateRaw, username, platform: 'MyFreeCams',
-        tokens, usd: tokensToUsd(tokens, 'MyFreeCams'),
+        tokens, usd: tokensToUsd(tokens, 'MyFreeCams'), ...usdAudit(resolveRowUsdDetail(tokens, 0, 'MyFreeCams')),
         tip_type: isPrivate ? 'Private' : 'Tip', tip_note: '',
         ...(isPrivate ? { is_paid_session: true, session_type: 'Private' } : {}),
       })
@@ -700,10 +744,10 @@ function parseHeaderless(lines, platform, delimiter = ',') {
         else if (i === 2 && tokens === 0) { tokens = Math.round(num) }
       }
       if (tokens === 0 && usd === 0) continue
-      const genericUsd = resolveRowUsd(tokens, usd, platform || 'Unknown')
-      if (genericUsd === null) continue
-      if (tokens === 0 && usd > 0) tokens = Math.round(usd / tokenRate(platform))
-      results.push({ dateRaw, date_time: dateRaw, username, platform: platform || 'Unknown', tokens, usd: genericUsd, tip_type: 'Tip', tip_note: '' })
+      const genericDetail = resolveRowUsdDetail(tokens, usd, platform || 'Unknown')
+      if (genericDetail.source === 'rejected') continue
+      if (tokens === 0 && usd > 0) tokens = tokensFromPayout(usd, platform || 'Unknown')
+      results.push({ dateRaw, date_time: dateRaw, username, platform: platform || 'Unknown', tokens, usd: genericDetail.usd, ...usdAudit(genericDetail), tip_type: 'Tip', tip_note: '' })
     }
   }
   return results
