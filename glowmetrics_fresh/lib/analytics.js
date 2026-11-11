@@ -137,7 +137,9 @@ function validateInsights(insights = []) {
 //   Tip From: username123
 //   500  12345
 // (date line / "Tip From: user" line / "tokens  running_balance" line)
-const CB_DATE_LINE_RE = /^([A-Za-z]{3})\s+(\d{1,2}),\s+(\d{4}),\s+(\d{1,2}):(\d{2})\s+(AM|PM)$/i
+// Accepts the exact export format ("Oct 9, 2026, 5:33 AM") plus common copy
+// variants: optional commas, full month names, 24-hour times (no AM/PM).
+const CB_DATE_LINE_RE = /^([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4}),?\s+(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i
 const CB_TIP_FROM_RE = /^Tip From:\s*(.+)$/i
 // Fan Club Membership purchases are real earnings from a named fan, same as
 // a tip — mirrors app/onboarding/page.js's parseRows(), which handles the
@@ -149,7 +151,8 @@ const CB_FAN_CLUB_RE = /^Fan Club Membership:\s*(.+)$/i
 // so it must never fall through to the generic multi-line date match below
 // and get treated as an unrecognized (but still date-stamped) tip block.
 const CB_NON_EARNING_ACTION_RE = /^(Admin Adjustment|Transfer tokens to)\b/i
-const CB_TOKENS_LINE_RE = /^(\d+)\s+(\d+)$/
+// Tokens may carry thousands separators ("1,250 1,250") when copied from the page.
+const CB_TOKENS_LINE_RE = /^(\d{1,3}(?:,\d{3})+|\d+)\s+(\d{1,3}(?:,\d{3})+|\d+)$/
 const CB_MONTHS = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 }
 
 // Both Chaturbate export shapes express the same storage timestamp.
@@ -189,12 +192,13 @@ function parseChaturbateMultiLine(lines) {
     }
 
     if (tMatch) {
-      const tokens = parseInt(tMatch[1], 10)
-      if (username && tokens >= 1) {
+      const tokens = parseInt(tMatch[1].replace(/,/g, ''), 10)
+      // Unknown month name: skip the row rather than silently dating it January.
+      const monthNum = CB_MONTHS[mon.slice(0, 3).toLowerCase()]
+      if (username && tokens >= 1 && monthNum) {
         let h = parseInt(hr, 10)
-        if (/pm/i.test(ampm) && h !== 12) h += 12
-        if (/am/i.test(ampm) && h === 12) h = 0
-        const monthNum = CB_MONTHS[mon.toLowerCase()] || 1
+        if (ampm && /pm/i.test(ampm) && h !== 12) h += 12
+        if (ampm && /am/i.test(ampm) && h === 12) h = 0
         const dateRaw = `${year}-${String(monthNum).padStart(2, '0')}-${String(parseInt(day, 10)).padStart(2, '0')} ${String(h).padStart(2, '0')}:${min}:00`
         if (fanClubMatch) note = note ? `Fan Club Membership: ${note}` : 'Fan Club Membership'
         results.push({
