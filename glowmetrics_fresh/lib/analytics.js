@@ -291,13 +291,28 @@ export function detectDateOrder(text) {
 // never shared between two parses). null keeps the previous behaviour.
 let activeDateOrder = null
 
+// Rows dropped as unreadable (payout contradicts tokens: misread columns).
+// Counted per parseCSV() call; parsing is synchronous, so the count read by
+// parseCSVWithStats() right after the call belongs to that call.
+let parseRejectedCount = 0
+let lastParseRejectedRows = 0
+
 export function parseCSV(text, platform = null, { dateOrder = null } = {}) {
   activeDateOrder = dateOrder === 'DMY' || dateOrder === 'MDY' ? dateOrder : null
+  parseRejectedCount = 0
   try {
     return parseCSVInner(text, platform)
   } finally {
+    lastParseRejectedRows = parseRejectedCount
     activeDateOrder = null
   }
+}
+
+// Same rows as parseCSV(), plus how many rows were rejected as unreadable,
+// so callers can tell the creator instead of dropping them silently.
+export function parseCSVWithStats(text, platform = null, opts = {}) {
+  const rows = parseCSV(text, platform, opts)
+  return { rows, rejectedRows: lastParseRejectedRows }
 }
 
 function parseCSVInner(text, platform) {
@@ -394,7 +409,7 @@ function normalizeTip(row) {
   // A row already priced from tokens is re-checked from tokens, not as a payout.
   const csvUsd = row.usd_source === 'tokens' || row.usd_source === 'unresolved' ? 0 : (parseFloat(row.usd) || 0)
   const detail = resolveRowUsdDetail(tokens, csvUsd, row.platform)
-  if (detail.source === 'rejected') return null
+  if (detail.source === 'rejected') { parseRejectedCount++; return null }
   const usd = detail.usd
   const dateRaw = normalizeDate(row.dateRaw || row.date_time || '')
   const parsedDate = new Date(dateRaw)
@@ -652,7 +667,7 @@ function parseWithHeaders(lines, platform, delimiter = ',') {
     // - Chaturbate: checked via Action field prefix "Private Show:"
     // - MyFreeCams: checked via Type column value "Private"
     const rowUsdDetail = resolveRowUsdDetail(tokens, usd, rowPlatform || 'Unknown')
-    if (rowUsdDetail.source === 'rejected') continue
+    if (rowUsdDetail.source === 'rejected') { parseRejectedCount++; continue }
     const isPaidSession = bcPaidChatType || cbIsPrivateShow || mfcIsPrivate
     const sessionTypeValue = bcPaidChatType || (cbIsPrivateShow ? 'Private Show' : (mfcIsPrivate ? 'Private' : null))
 
@@ -701,7 +716,7 @@ function parseHeaderless(lines, platform, delimiter = ',') {
       if (!username || (tokens <= 0 && usd <= 0)) continue
       if (!dateRaw || isNaN(new Date(dateRaw).getTime())) continue
       const bcDetail = resolveRowUsdDetail(tokens, usd, platform || 'BongaCams')
-      if (bcDetail.source === 'rejected') continue
+      if (bcDetail.source === 'rejected') { parseRejectedCount++; continue }
       results.push({ dateRaw, date_time: dateRaw, username, platform: platform || 'BongaCams', tokens: tokens > 0 ? tokens : tokensFromPayout(usd, platform || 'BongaCams'), usd: bcDetail.usd, ...usdAudit(bcDetail), tip_type: vals[2] || 'Tip', tip_note: '' })
       continue
     }
@@ -745,7 +760,7 @@ function parseHeaderless(lines, platform, delimiter = ',') {
       }
       if (tokens === 0 && usd === 0) continue
       const genericDetail = resolveRowUsdDetail(tokens, usd, platform || 'Unknown')
-      if (genericDetail.source === 'rejected') continue
+      if (genericDetail.source === 'rejected') { parseRejectedCount++; continue }
       if (tokens === 0 && usd > 0) tokens = tokensFromPayout(usd, platform || 'Unknown')
       results.push({ dateRaw, date_time: dateRaw, username, platform: platform || 'Unknown', tokens, usd: genericDetail.usd, ...usdAudit(genericDetail), tip_type: 'Tip', tip_note: '' })
     }

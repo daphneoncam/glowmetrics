@@ -8,7 +8,7 @@
  *  - misread columns stored as earnings (tokens = 2026, payout $68,465)
  *  - 'Unknown' platform silently priced at another platform's $0.05 rate
  */
-import { parseCSV, resolveRowUsd, resolveRowUsdDetail, USD_MISMATCH_FACTOR, aggregateRows } from '../analytics'
+import { parseCSV, parseCSVWithStats, resolveRowUsd, resolveRowUsdDetail, USD_MISMATCH_FACTOR, aggregateRows } from '../analytics'
 
 // Oracle: model rate in thousandths of a dollar per token, known platforms only.
 const MILLI_PER_TOKEN = { BongaCams: 25, Chaturbate: 50, MyFreeCams: 50 }
@@ -140,6 +140,29 @@ describe('parseCSV: formats, columns and audit fields', () => {
     ]), 'BongaCams')
     const oracleMilli = payouts.reduce((s, p) => s + milli(Number(p)), 0) // 472
     expect(parsed.reduce((s, r) => s + milli(r.usd), 0)).toBe(oracleMilli)
+  })
+})
+
+describe('parseCSVWithStats: rejected rows are counted, never silent', () => {
+  test('counts misread rows and returns the same rows as parseCSV', () => {
+    const csv = tab([
+      BC_HEADER,
+      ['18.06.2026 14:32', 'fanA', 'Tips', '10', '$0.24'],
+      ['18.06.2026 14:33', 'fanB', 'Tips', '2026', '$68,465.00'],
+      ['18.06.2026 14:34', 'fanC', 'Tips', '1000', '$0.01'],
+      ['18.06.2026 14:35', 'fanD', 'Tips', '4', '$0.09'],
+    ])
+    const { rows, rejectedRows } = parseCSVWithStats(csv, 'BongaCams')
+    expect(rejectedRows).toBe(2)
+    expect(rows.map((r) => r.username)).toEqual(['fana', 'fand'])
+    expect(parseCSV(csv, 'BongaCams')).toEqual(rows)
+  })
+
+  test('a clean file reports 0, and the count resets between calls', () => {
+    const bad = tab([BC_HEADER, ['18.06.2026 14:33', 'fanB', 'Tips', '2026', '$68,465.00']])
+    const good = tab([BC_HEADER, ['18.06.2026 14:32', 'fanA', 'Tips', '10', '$0.24']])
+    expect(parseCSVWithStats(bad, 'BongaCams').rejectedRows).toBe(1)
+    expect(parseCSVWithStats(good, 'BongaCams').rejectedRows).toBe(0)
   })
 })
 

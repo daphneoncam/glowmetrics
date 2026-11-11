@@ -1,7 +1,7 @@
 import { summarizeOnboarding } from '../../../lib/onboardingSummary'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { parseCSV, detectPlatform, detectDateOrder, computeSnapshotStats, hasKnownTokenRate } from '../../../lib/analytics'
+import { parseCSVWithStats, detectPlatform, detectDateOrder, computeSnapshotStats, hasKnownTokenRate } from '../../../lib/analytics'
 import { platformLimitMessage } from '../../../lib/planLimits'
 import { canonicalPlatform, PLATFORM_TOKEN_RATES, tokensToUsd } from '../../../lib/constants'
 import { importTimeZone, toStoredInstant } from '../../../lib/creatorTimezone'
@@ -139,7 +139,7 @@ async function handleUpload(req) {
   // The parser keeps its content-detected platform when it has one (same
   // parse as before); otherwise it uses the resolved platform so token→USD
   // uses that platform's rate rather than the default.
-  const parsed = parseCSV(raw, contentPlatform !== 'Unknown' ? contentPlatform : textDetectedPlatform, { dateOrder })
+  const { rows: parsed, rejectedRows } = parseCSVWithStats(raw, contentPlatform !== 'Unknown' ? contentPlatform : textDetectedPlatform, { dateOrder })
 
   // Log parse attempt to track platform support and format issues
   const formatAnalysis = analyzeFormat(raw)
@@ -213,6 +213,13 @@ async function handleUpload(req) {
   for (let i = rows.length - 1; i >= 0; i--) {
     if (rows[i]._usd_unresolved) { rows.splice(i, 1); unresolvedUsdRows++ }
     else delete rows[i]._usd_unresolved
+  }
+
+  if (!rows.length && rejectedRows > 0 && unresolvedUsdRows === 0) {
+    return NextResponse.json(
+      { error: `${rejectedRows} row(s) could not be read: their payout does not match their tokens, which usually means the columns were read wrongly. Nothing was imported. Check the file's columns and upload again.`, code: 'rows_unreadable', rejectedRows },
+      { status: 400 }
+    )
   }
 
   if (!rows.length && unresolvedUsdRows > 0) {
@@ -462,6 +469,7 @@ async function handleUpload(req) {
     platform:  detectedPlatform, // ← used by dashboard toast
     totalUsd:  summaryTotalUsd,
     unresolvedUsdRows,
+    rejectedRows,
     dateFrom:  summaryDateFrom ? summaryDateFrom.toISOString() : null,
     dateTo:    summaryDateTo ? summaryDateTo.toISOString() : null,
     paidSessionsInserted: paidInserted,
@@ -486,6 +494,9 @@ async function handleUpload(req) {
     console.warn('[UPLOAD] Paid-session batches completed with errors:', paidErrors)
   }
 
+  if (rejectedRows > 0) {
+    response.rejectedRowsWarning = `${rejectedRows} row(s) were not imported because they could not be read: their payout does not match their tokens, which usually means the columns were read wrongly.`
+  }
   if (unresolvedUsdRows > 0) {
     response.unresolvedUsdWarning = `${unresolvedUsdRows} row(s) were not imported: they have tokens but no USD payout, and their platform has no known token rate. Upload them again with the platform selected.`
   }
