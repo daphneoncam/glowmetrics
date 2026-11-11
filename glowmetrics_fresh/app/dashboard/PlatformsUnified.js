@@ -199,7 +199,21 @@ export default function PlatformsUnified({ analytics, tips = [], shows = [], tz 
 
   const days = effectiveRangeDays(selected, isPro)
   const clamped = days < selected
-  const range = useMemo(() => rangeBounds(days, now), [days, now])
+  // Anchor the window to the account's latest tip when that is older than today.
+  // Free history is already windowed per platform from its latest row
+  // (lib/analytics.js applyFreeAnalysisWindow), so a window ending "today" would
+  // always be empty for an account whose last tip is in the past.
+  const latestTipMs = useMemo(() => {
+    let m = null
+    for (const t of tips) {
+      const ms = new Date(t.date_time || t.dateRaw).getTime()
+      if (!isNaN(ms) && (m === null || ms > m)) m = ms
+    }
+    return m
+  }, [tips])
+  const anchor = latestTipMs !== null && latestTipMs < now ? latestTipMs : now
+  const anchored = anchor !== now
+  const range = useMemo(() => rangeBounds(days, anchor), [days, anchor])
   const prior = useMemo(() => ({ start: range.start - days * DAY, end: range.start }), [range, days])
 
   // Range-filtered engine totals (the same aggregation the page uses), for the
@@ -257,7 +271,7 @@ export default function PlatformsUnified({ analytics, tips = [], shows = [], tz 
       {/* Reporting period (selector really filters everything below except records) */}
       <div className={S.toolbar}>
         <span className={S.periodNote} data-testid="pu-period-note">
-          {clamped ? `Free shows the last ${FREE_WINDOW_DAYS} days. Pro unlocks 90-day history and comparisons.` : isPro ? `Showing ${days} days · comparisons vs the prior ${days} days` : `Showing ${days} days · Pro adds comparisons vs prior periods`}
+          {(clamped ? `Free shows the last ${FREE_WINDOW_DAYS} days. Pro unlocks 90-day history and comparisons.` : isPro ? `Showing ${days} days · comparisons vs the prior ${days} days` : `Showing ${days} days · Pro adds comparisons vs prior periods`) + (anchored ? ` · ending ${dayLong(new Date(anchor).toISOString().slice(0, 10))} (latest activity on file)` : '')}
         </span>
       </div>
 
