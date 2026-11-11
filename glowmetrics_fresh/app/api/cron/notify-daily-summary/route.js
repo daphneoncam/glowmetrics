@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { attachEmails } from '../../../../lib/email/sendEmail'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +36,7 @@ async function sendAlert(supabase, emailType, subject, text) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'GlowMetrics <noreply@camcashgrl.com>',
+        from: 'CamCash <noreply@camcashgrl.com>',
         to: 'daphneoncam@gmail.com',
         subject,
         text,
@@ -71,7 +72,7 @@ export async function GET() {
   // 1. New Signups
   const { data: newSignups } = await supabase
     .from('profiles')
-    .select('id, email, created_at, plan, trial_ends_at')
+    .select('id, created_at, plan, trial_ends_at')
     .gte('created_at', yesterday)
     .order('created_at', { ascending: false })
 
@@ -99,7 +100,11 @@ export async function GET() {
     .order('created_at', { ascending: false })
 
   // Build alert email
-  let alertText = '📊 GLOWMETRICS DAILY ACTIVITY SUMMARY\n\n'
+  // profiles has no email column: look emails up from auth for the people
+  // listed in this report (previously the query failed and showed 0).
+  await attachEmails(supabase, newSignups)
+
+  let alertText = '📊 CAMCASH DAILY ACTIVITY SUMMARY\n\n'
   alertText += `Report Date: ${new Date().toISOString().split('T')[0]}\n`
   alertText += '='.repeat(50) + '\n\n'
 
@@ -162,7 +167,7 @@ export async function GET() {
   await sendAlert(
     supabase,
     'daily_summary',
-    `📊 GlowMetrics Daily Summary - ${new Date().toISOString().split('T')[0]}`,
+    `📊 CamCash Daily Summary - ${new Date().toISOString().split('T')[0]}`,
     alertText
   )
 

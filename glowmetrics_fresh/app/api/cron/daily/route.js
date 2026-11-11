@@ -1,144 +1,85 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
 // Cron endpoint — never statically optimize this (see the same note in
 // app/api/cron/expire-goodwill-trials/route.js).
 export const dynamic = 'force-dynamic'
+// The steps run one after another; give the whole job room to finish.
+export const maxDuration = 60
+
+// Same steps, same order and same response keys as before. New (2026-11-11):
+// each step's outcome is saved to public.cron_runs, because the admin emails
+// stopped after Nov 7 and Vercel Hobby keeps runtime logs for only 1 hour,
+// so there was no way to see which step failed.
+const STEPS = [
+  ['digest', '/api/notify/digest'],
+  ['goodwillExpiry', '/api/cron/expire-goodwill-trials'],
+  ['subscriptionDrift', '/api/cron/check-subscription-drift'],
+  ['webhookFailures', '/api/cron/check-webhook-failures'],
+  ['dailySummary', '/api/cron/notify-daily-summary'],
+  ['trialAlerts', '/api/cron/notify-trial-alerts'],
+  ['conversionReport', '/api/cron/notify-conversions'],
+  ['emailFailures', '/api/cron/check-email-failures'],
+  ['trialExpiry3Day', '/api/cron/send-trial-expiry-3day'],
+  ['trialExpiry1Day', '/api/cron/send-trial-expiry-1day'],
+  ['trialExpired', '/api/cron/send-trial-expired'],
+  ['subscriptionTips', '/api/cron/send-subscription-tips'],
+]
+
+function admin() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return null
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+}
+
+async function recordRun(db, runId, step, path, outcome) {
+  if (!db) return
+  try {
+    const { error } = await db.from('cron_runs').insert({
+      run_id: runId,
+      job: 'daily',
+      step,
+      path,
+      ok: outcome.ok,
+      status_code: outcome.status,
+      duration_ms: outcome.ms,
+      result: outcome.body ?? null,
+      error: outcome.error ?? null,
+    })
+    if (error) console.error('[cron/daily] cron_runs insert failed:', error.message)
+  } catch (e) {
+    console.error('[cron/daily] cron_runs insert threw:', e.message)
+  }
+}
 
 export async function GET(req) {
   const origin = new URL(req.url).origin
-  let digest = null
-  let digestError = null
-  try {
-    const res = await fetch(`${origin}/api/notify/digest`)
-    digest = await res.json()
-  } catch (err) {
-    console.error('[cron/daily] Failed to call digest:', err.message)
-    digestError = err.message
+  const db = admin()
+  const runId = (globalThis.crypto?.randomUUID?.() || `${Date.now()}`)
+  const response = {}
+  let allOk = true
+
+  for (const [key, path] of STEPS) {
+    const started = Date.now()
+    let outcome
+    try {
+      const res = await fetch(`${origin}${path}`)
+      const body = await res.json().catch(() => null)
+      const ok = res.ok && body?.success !== false
+      outcome = { ok, status: res.status, body, ms: Date.now() - started, error: ok ? null : (body?.error || `HTTP ${res.status}`) }
+      response[key] = body
+      response[`${key}Error`] = null
+      // Previous behaviour kept: only a thrown fetch counts toward `success`.
+    } catch (err) {
+      console.error(`[cron/daily] ${key} failed:`, err.message)
+      outcome = { ok: false, status: null, body: null, ms: Date.now() - started, error: err.message }
+      response[key] = null
+      response[`${key}Error`] = err.message
+      allOk = false
+    }
+    await recordRun(db, runId, key, path, outcome)
   }
 
-  let goodwillExpiry = null
-  let goodwillExpiryError = null
-  try {
-    const res = await fetch(`${origin}/api/cron/expire-goodwill-trials`)
-    goodwillExpiry = await res.json()
-  } catch (err) {
-    console.error('[cron/daily] Failed to expire goodwill trials:', err.message)
-    goodwillExpiryError = err.message
-  }
-
-  let subscriptionDrift = null
-  let subscriptionDriftError = null
-  try {
-    const res = await fetch(`${origin}/api/cron/check-subscription-drift`)
-    subscriptionDrift = await res.json()
-  } catch (err) {
-    console.error('[cron/daily] Failed to check subscription drift:', err.message)
-    subscriptionDriftError = err.message
-  }
-
-  let webhookFailures = null
-  let webhookFailuresError = null
-  try {
-    const res = await fetch(`${origin}/api/cron/check-webhook-failures`)
-    webhookFailures = await res.json()
-  } catch (err) {
-    console.error('[cron/daily] Failed to check webhook failures:', err.message)
-    webhookFailuresError = err.message
-  }
-
-  let dailySummary = null
-  let dailySummaryError = null
-  try {
-    const res = await fetch(`${origin}/api/cron/notify-daily-summary`)
-    dailySummary = await res.json()
-  } catch (err) {
-    console.error('[cron/daily] Failed to send daily summary:', err.message)
-    dailySummaryError = err.message
-  }
-
-  let trialAlerts = null
-  let trialAlertsError = null
-  try {
-    const res = await fetch(`${origin}/api/cron/notify-trial-alerts`)
-    trialAlerts = await res.json()
-  } catch (err) {
-    console.error('[cron/daily] Failed to send trial alerts:', err.message)
-    trialAlertsError = err.message
-  }
-
-  let conversionReport = null
-  let conversionReportError = null
-  try {
-    const res = await fetch(`${origin}/api/cron/notify-conversions`)
-    conversionReport = await res.json()
-  } catch (err) {
-    console.error('[cron/daily] Failed to send conversion report:', err.message)
-    conversionReportError = err.message
-  }
-
-  let emailFailures = null
-  let emailFailuresError = null
-  try {
-    const res = await fetch(`${origin}/api/cron/check-email-failures`)
-    emailFailures = await res.json()
-  } catch (err) {
-    console.error('[cron/daily] Failed to check email failures:', err.message)
-    emailFailuresError = err.message
-  }
-
-  let trialExpiry3Day = null
-  let trialExpiry3DayError = null
-  try {
-    const res = await fetch(`${origin}/api/cron/send-trial-expiry-3day`)
-    trialExpiry3Day = await res.json()
-  } catch (err) {
-    console.error('[cron/daily] Failed to send trial expiry 3day emails:', err.message)
-    trialExpiry3DayError = err.message
-  }
-
-  let trialExpiry1Day = null
-  let trialExpiry1DayError = null
-  try {
-    const res = await fetch(`${origin}/api/cron/send-trial-expiry-1day`)
-    trialExpiry1Day = await res.json()
-  } catch (err) {
-    console.error('[cron/daily] Failed to send trial expiry 1day emails:', err.message)
-    trialExpiry1DayError = err.message
-  }
-
-  let trialExpired = null
-  let trialExpiredError = null
-  try {
-    const res = await fetch(`${origin}/api/cron/send-trial-expired`)
-    trialExpired = await res.json()
-  } catch (err) {
-    console.error('[cron/daily] Failed to send trial expired emails:', err.message)
-    trialExpiredError = err.message
-  }
-
-  let subscriptionTips = null
-  let subscriptionTipsError = null
-  try {
-    const res = await fetch(`${origin}/api/cron/send-subscription-tips`)
-    subscriptionTips = await res.json()
-  } catch (err) {
-    console.error('[cron/daily] Failed to send subscription tips:', err.message)
-    subscriptionTipsError = err.message
-  }
-
-  return NextResponse.json({
-    success: !digestError && !goodwillExpiryError && !subscriptionDriftError && !webhookFailuresError && !dailySummaryError && !trialAlertsError && !conversionReportError && !emailFailuresError && !trialExpiry3DayError && !trialExpiry1DayError && !trialExpiredError && !subscriptionTipsError,
-    digest, digestError,
-    goodwillExpiry, goodwillExpiryError,
-    subscriptionDrift, subscriptionDriftError,
-    webhookFailures, webhookFailuresError,
-    dailySummary, dailySummaryError,
-    trialAlerts, trialAlertsError,
-    conversionReport, conversionReportError,
-    emailFailures, emailFailuresError,
-    trialExpiry3Day, trialExpiry3DayError,
-    trialExpiry1Day, trialExpiry1DayError,
-    trialExpired, trialExpiredError,
-    subscriptionTips, subscriptionTipsError,
-  })
+  return NextResponse.json({ success: allOk, runId, ...response })
 }

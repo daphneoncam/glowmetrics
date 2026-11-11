@@ -14,15 +14,17 @@ function expectedPlanFor(stripeStatus) {
 
 async function sendDriftAlert(mismatches) {
   try {
-    await fetch('https://api.resend.com/emails', {
+    const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'GlowMetrics <notifications@glowmetrics.co>',
-        to: process.env.OWNER_EMAIL || 'support@glowmetrics.co',
+        // Was the old GlowMetrics domain (unverified): see the note on owner
+        // alerts in app/api/stripe/webhook/route.js.
+        from: 'CamCash <noreply@camcashgrl.com>',
+        to: process.env.OWNER_EMAIL || 'daphneoncam@gmail.com',
         subject: `⚠️ Subscription drift: ${mismatches.length} profile(s) out of sync with Stripe`,
         text: mismatches.map(m =>
           `user ${m.userId} (sub ${m.stripeSubscriptionId}): ` +
@@ -31,6 +33,7 @@ async function sendDriftAlert(mismatches) {
         ).join('\n'),
       }),
     })
+    if (!res.ok) console.error('[cron/check-subscription-drift] alert email rejected:', res.status)
   } catch (e) {
     console.error('[cron/check-subscription-drift] Failed to send alert email:', e.message)
   }

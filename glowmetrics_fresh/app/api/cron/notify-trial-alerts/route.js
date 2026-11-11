@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { attachEmails } from '../../../../lib/email/sendEmail'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +36,7 @@ async function sendAlert(supabase, emailType, subject, text) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'GlowMetrics <noreply@camcashgrl.com>',
+        from: 'CamCash <noreply@camcashgrl.com>',
         to: 'daphneoncam@gmail.com',
         subject,
         text,
@@ -74,7 +75,7 @@ export async function GET() {
   // 1. Trials expiring TODAY (should convert or expire)
   const { data: trialsExpiringToday } = await supabase
     .from('profiles')
-    .select('id, email, plan, trial_ends_at, subscription_status')
+    .select('id, plan, trial_ends_at, subscription_status')
     .gte('trial_ends_at', today.toISOString())
     .lt('trial_ends_at', tomorrow.toISOString())
     .eq('subscription_status', 'trialing')
@@ -82,7 +83,7 @@ export async function GET() {
   // 2. Trials expiring in NEXT 2 DAYS (heads up)
   const { data: trialsExpiringsSoon } = await supabase
     .from('profiles')
-    .select('id, email, plan, trial_ends_at, subscription_status')
+    .select('id, plan, trial_ends_at, subscription_status')
     .gte('trial_ends_at', tomorrow.toISOString())
     .lt('trial_ends_at', twoDaysFromNow.toISOString())
     .eq('subscription_status', 'trialing')
@@ -90,10 +91,16 @@ export async function GET() {
   // 3. Trials that expired but still showing as trialing (data sync issue)
   const { data: staleTrials } = await supabase
     .from('profiles')
-    .select('id, email, plan, trial_ends_at, subscription_status')
+    .select('id, plan, trial_ends_at, subscription_status')
     .lt('trial_ends_at', today.toISOString())
     .eq('subscription_status', 'trialing')
     .limit(50)
+
+  // profiles has no email column: look emails up from auth for the people
+  // listed in this report (previously the query failed and showed 0).
+  await attachEmails(supabase, staleTrials)
+  await attachEmails(supabase, trialsExpiringToday)
+  await attachEmails(supabase, trialsExpiringsSoon)
 
   let alertText = ''
   let hasCritical = false

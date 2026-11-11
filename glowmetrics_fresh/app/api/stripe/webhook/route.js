@@ -51,21 +51,33 @@ async function getEmailFromCustomer(customerId) {
   return customer?.email || null
 }
 
-async function sendResendNotification(subject, text, to = process.env.OWNER_EMAIL || 'support@glowmetrics.co') {
+// Owner alerts. Previously sent from a notifications address on the old
+// GlowMetrics domain (not the verified sending domain), with a fallback inbox
+// on that domain too, so they were most likely never delivered. Now sent from
+// the address the daily admin summary already delivers from, to OWNER_EMAIL
+// or the same admin inbox.
+const OWNER_ALERT_FROM = 'CamCash <noreply@camcashgrl.com>'
+const OWNER_ALERT_TO = process.env.OWNER_EMAIL || 'daphneoncam@gmail.com'
+
+async function sendResendNotification(subject, text, to = OWNER_ALERT_TO) {
   try {
-    await fetch('https://api.resend.com/emails', {
+    const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'GlowMetrics <notifications@glowmetrics.co>',
+        from: OWNER_ALERT_FROM,
         to,
         subject,
         text,
       }),
     })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      console.error('Resend notification rejected:', res.status, body?.message || '')
+    }
   } catch (e) {
     console.error('Resend notification failed:', e.message)
   }

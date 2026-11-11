@@ -85,3 +85,13 @@ export async function getUserEmail(supabase, userId) {
     return null
   }
 }
+
+// Adds `email` (from auth) to the first `limit` rows that have an `id`, for
+// admin reports that list people. Rows past the limit are left unchanged.
+export async function attachEmails(supabase, rows, limit = 10) {
+  if (!Array.isArray(rows)) return rows
+  for (const row of rows.slice(0, limit)) {
+    if (row && row.id && !row.email) row.email = (await getUserEmail(supabase, row.id)) || `user ${row.id}`
+  }
+  return rows
+}

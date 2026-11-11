@@ -11,6 +11,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4'
 // never retried. Now this function marks the profile only after Resend
 // accepts the email, logs every attempt to email_logs, and returns a non-2xx
 // status on failure. The email content below is unchanged.
+//
+// 2026-11-11: calls must carry the shared secret (x-camcash-secret header,
+// sent by public.send_live_mode_guide_batch); anything else is refused.
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
@@ -172,8 +175,25 @@ async function logEmail(admin: ReturnType<typeof adminClient>, recipient: string
   if (error) console.error('[live-mode-guide] email_logs insert failed:', error.message)
 }
 
+// Shared-secret check (see migration 20261111_lock_email_functions.sql).
+let cachedSecret: string | null = null
+async function isAuthorized(req: Request, admin: ReturnType<typeof adminClient>): Promise<boolean> {
+  const provided = req.headers.get('x-camcash-secret') || ''
+  if (!admin || !provided) return false
+  if (!cachedSecret) {
+    const { data, error } = await admin.rpc('get_email_function_secret')
+    if (error || !data) return false
+    cachedSecret = String(data)
+  }
+  if (provided.length !== cachedSecret.length) return false
+  let diff = 0
+  for (let i = 0; i < provided.length; i++) diff |= provided.charCodeAt(i) ^ cachedSecret.charCodeAt(i)
+  return diff === 0
+}
+
 serve(async (req) => {
   const admin = adminClient()
+  if (!(await isAuthorized(req, admin))) return json({ error: 'unauthorized' }, 401)
   let email = ''
   try {
     const body = await req.json()

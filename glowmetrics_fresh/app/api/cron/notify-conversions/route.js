@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { attachEmails } from '../../../../lib/email/sendEmail'
 
 // Standard monthly plan price (Stripe price_1UOVqL…). Estimate only — assumes every conversion is monthly.
 const MONTHLY_PRICE_USD = 9.99
@@ -38,7 +39,7 @@ async function sendAlert(supabase, emailType, subject, text) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'GlowMetrics <noreply@camcashgrl.com>',
+        from: 'CamCash <noreply@camcashgrl.com>',
         to: 'daphneoncam@gmail.com',
         subject,
         text,
@@ -83,7 +84,7 @@ export async function GET() {
   // 2. Failed Conversions (user tried to upgrade but webhook/payment failed)
   const { data: failedConversions } = await supabase
     .from('profiles')
-    .select('id, email, plan, subscription_status, stripe_subscription_id, trial_ends_at')
+    .select('id, plan, subscription_status, stripe_subscription_id, trial_ends_at')
     .eq('subscription_status', 'trialing')
     .lt('trial_ends_at', new Date().toISOString())
     .order('trial_ends_at', { ascending: false })
@@ -104,6 +105,10 @@ export async function GET() {
     .eq('previous_plan', 'trialing')
     .gte('created_at', yesterday)
     .order('created_at', { ascending: false })
+
+  // profiles has no email column: look emails up from auth for the people
+  // listed in this report (previously the query failed and showed 0).
+  await attachEmails(supabase, failedConversions)
 
   let alertText = '💳 SUBSCRIPTION CONVERSION REPORT\n\n'
   alertText += `Report Date: ${new Date().toISOString().split('T')[0]}\n`
