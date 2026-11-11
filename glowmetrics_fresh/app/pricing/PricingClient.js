@@ -75,7 +75,7 @@ async function startCheckout(planType, setLoading, trial = true) {
       )
     }
 
-    track('pricing_checkout_redirected', { plan_type: planType, plan_price: PLAN_PRICE[planType] })
+    track('pricing_checkout_redirected', { plan_type: planType, plan_price: PLAN_PRICE[planType], trial })
     window.location.assign(data.url)
   } catch (error) {
     if (!failureTracked) fail('network_error')

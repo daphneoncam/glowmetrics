@@ -46,9 +46,13 @@ const installBrowserStubs = () => {
   })
 }
 
-const mount = async ({ plan = 'pro', tab = 'overview', dbOpts = {}, build = buildAccount } = {}) => {
+// Accounts created before the paywall-test cutoff keep dashboard access
+// (lib/paywallTest.js), so the fixture user is a legacy account by default.
+const LEGACY_CREATED_AT = '2026-10-01T10:00:00Z'
+const NEW_CREATED_AT = '2026-11-20T10:00:00Z'
+const mount = async ({ plan = 'pro', tab = 'overview', dbOpts = {}, build = buildAccount, createdAt = LEGACY_CREATED_AT } = {}) => {
   account = build({ plan })
-  mockDb = fakeSupabase(account.tables, { user: account.user, ...dbOpts })
+  mockDb = fakeSupabase(account.tables, { user: { ...account.user, created_at: createdAt }, ...dbOpts })
   localStorage.setItem('camcash_tab', tab)
   let utils
   await act(async () => { utils = render(<Boundary><Dashboard /></Boundary>) })
@@ -56,7 +60,18 @@ const mount = async ({ plan = 'pro', tab = 'overview', dbOpts = {}, build = buil
 }
 const notCrashed = () => expect(screen.queryByTestId('crash')?.textContent).toBeUndefined()
 
-beforeEach(() => { localStorage.clear(); installBrowserStubs() })
+beforeEach(() => { localStorage.clear(); installBrowserStubs(); mockRouter.replace.mockClear() })
+
+test('paywall test: a new account with no paid plan or trial is sent to pricing', async () => {
+  await mount({ plan: 'free', tab: 'overview', createdAt: NEW_CREATED_AT })
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/pricing?paywall=1'), { timeout: 10000 })
+})
+
+test('paywall test: a new account on a paid plan is not redirected', async () => {
+  await mount({ plan: 'pro', tab: 'overview', createdAt: NEW_CREATED_AT })
+  await waitFor(() => expect(screen.getByText('Meaningful Sessions')).toBeTruthy(), { timeout: 30000 })
+  expect(mockRouter.replace).not.toHaveBeenCalledWith('/pricing?paywall=1')
+})
 
 jest.setTimeout(60000)
 
