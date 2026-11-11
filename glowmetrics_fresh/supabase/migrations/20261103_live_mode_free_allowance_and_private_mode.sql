@@ -1,6 +1,7 @@
 -- Live Mode Free allowance + Private Mode attribution + platform-cap removal.
 --
--- NOT YET APPLIED TO PRODUCTION. Written against production's live function
+-- APPLIED TO PRODUCTION 2026-11-04 (schema_migrations version 20261104002930).
+-- Originally written against production's live function
 -- definitions as of 2026-10-28 (read via pg_get_functiondef), which differ
 -- from the repo copies: production already gates Live Mode to Pro through
 -- check_live_mode_pro_entitlement() (migration gate_live_mode_pro_only,

@@ -1,0 +1,33 @@
+-- Drop the legacy 2-argument start_private_interval(numeric, text).
+--
+-- Follow-up promised in 20261103_live_mode_free_allowance_and_private_mode.sql
+-- ("drop it in a follow-up migration" once that release is live). The release
+-- has been live since 2026-11-04.
+--
+-- Why: the legacy overload stayed EXECUTE-able by every signed-in user and
+-- skipped the Private Mode rules the 3-argument version enforces:
+--   * no fan username required;
+--   * no upper bound on rate_per_minute (3-arg caps at 1000);
+--   * platform taken from the caller verbatim (lower(p_platform)) instead of
+--     the running session's canonical platform, with no mismatch check.
+-- A direct RPC call could therefore save private intervals that feed private
+-- earnings with no username, an invented platform, or an unbounded rate.
+--
+-- STATUS: written 2026-11-11; NOT YET APPLIED to production (first attempt
+-- timed out awaiting owner confirmation; nothing changed). Update this line
+-- when applied.
+--
+-- Safe to drop (verified 2026-11-11):
+--   * no app route, client code, or Chrome extension build calls it — the only
+--     caller, /api/live/session/private/start, passes p_username (3-arg);
+--   * no database function references it;
+--   * live_private_intervals had 0 rows in production, so no data was written
+--     through it.
+--
+-- Unchanged: start_private_interval(numeric, text, text), its grants, the
+-- live_private_intervals table, and every other function.
+--
+-- Rollback (not recommended): re-run the 2-arg CREATE from
+-- 20261009_post_show_private_intervals.sql.
+
+DROP FUNCTION IF EXISTS public.start_private_interval(numeric, text);
