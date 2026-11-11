@@ -679,14 +679,14 @@ export default function PlatformsIntelligence({ analytics = null, tips = [], sho
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <div role="group" aria-label="View" style={{ display: 'flex', gap: 2, background: 'rgba(8,10,24,0.6)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 3 }}>
+          {/* Same control as the Sessions range group (Stream Planner Pill styling) */}
+          <div role="group" aria-label="View" style={{ display: 'flex', gap: 4, background: 'rgba(8,11,22,0.6)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: 4 }}>
             {[['unified', 'Unified View'], ['split', 'Split View']].map(([v, l]) => (
               <button key={v} data-testid={`pi-view-${v}`} aria-pressed={view === v} onClick={() => setView(v)} style={{
-                padding: '7px 16px', fontSize: 13, fontWeight: 700, borderRadius: 9, cursor: 'pointer',
-                border: `1px solid ${view === v ? 'rgba(34,211,238,0.75)' : 'transparent'}`,
-                background: view === v ? 'rgba(34,211,238,0.1)' : 'transparent',
-                boxShadow: view === v ? '0 0 14px rgba(34,211,238,0.25)' : 'none',
-                color: view === v ? '#E0FBFF' : C.text,
+                padding: '5px 13px', fontSize: 12, borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s',
+                border: `1px solid ${view === v ? '#22d3ee' : 'rgba(255,255,255,0.08)'}`,
+                background: view === v ? 'rgba(34,211,238,0.10)' : 'transparent',
+                color: view === v ? '#22d3ee' : '#64748b', fontWeight: view === v ? 700 : 400,
               }}>{l}</button>
             ))}
           </div>
