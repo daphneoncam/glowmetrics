@@ -96,6 +96,12 @@ describe('POST /api/stripe/checkout', () => {
     expect(args.cancel_url).toBe('https://www.camcashgrl.com/dashboard?canceled=true')
   })
 
+  test('trial request requires a card on file (payment_method_collection always)', async () => {
+    await POST(req({ plan_type: 'standard_monthly' }))
+    const args = stripe.checkout.sessions.create.mock.calls[0][0]
+    expect(args.payment_method_collection).toBe('always')
+  })
+
   test('paid-now request (trial: false): no trial period and no trial in the return URL', async () => {
     const res = await POST(req({ plan_type: 'standard_monthly', trial: false }))
     expect(res.status).toBe(200)

@@ -155,6 +155,8 @@ export async function POST(request) {
       customer: customerId,
       mode: 'subscription',
       payment_method_types: ['card'],
+      // A trial always requires a card on file (charged when the trial ends).
+      ...(withTrial ? { payment_method_collection: 'always' } : {}),
       line_items: [{ price: priceId, quantity: 1 }],
       subscription_data: {
         ...(withTrial ? { trial_period_days: trialDays } : {}),
