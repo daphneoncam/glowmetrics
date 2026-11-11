@@ -229,14 +229,162 @@ function TopBar({ user }) {
   )
 }
 
+const ROLLOVER_FEATURE = 'Rolling 31-day history on each platform'
+
+// Free-tier rollover tooltip. Hover, keyboard focus, or tap toggles it.
+function RolloverInfo() {
+  const [open, setOpen] = useState(false)
+  const tipId = 'rollover-info-tip'
+  return (
+    <span
+      style={{ position: 'relative', display: 'inline-flex', marginLeft: 6, verticalAlign: 'middle' }}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        aria-label="About older data"
+        aria-describedby={open ? tipId : undefined}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        style={{
+          width: 16,
+          height: 16,
+          borderRadius: '50%',
+          border: `1px solid ${C.muted}`,
+          background: 'transparent',
+          color: C.text,
+          fontSize: 10,
+          fontWeight: 700,
+          lineHeight: '14px',
+          padding: 0,
+          cursor: 'pointer',
+        }}
+      >
+        i
+      </button>
+      {open && (
+        <span
+          role="tooltip"
+          id={tipId}
+          style={{
+            position: 'absolute',
+            bottom: 'calc(100% + 8px)',
+            left: 0,
+            width: 260,
+            padding: '10px 12px',
+            borderRadius: 10,
+            background: '#0B0F22',
+            border: `1px solid ${C.border}`,
+            color: C.text,
+            fontSize: 12,
+            fontWeight: 400,
+            lineHeight: 1.5,
+            zIndex: 5,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          }}
+        >
+          Your older data is safely archived—never deleted. Upgrade to Pro anytime to instantly unlock your full history.
+        </span>
+      )}
+    </span>
+  )
+}
+
+function BillingToggle({ value, onChange }) {
+  const options = [
+    ['monthly', 'Monthly'],
+    ['annual', 'Annual (Save 17%)'],
+  ]
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
+      <div
+        role="radiogroup"
+        aria-label="Billing interval"
+        style={{
+          display: 'inline-flex',
+          padding: 4,
+          borderRadius: 999,
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          maxWidth: '100%',
+        }}
+      >
+        {options.map(([v, label]) => {
+          const active = value === v
+          return (
+            <button
+              key={v}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => {
+                track('pricing_billing_toggled', { interval: v })
+                onChange(v)
+              }}
+              style={{
+                padding: '9px 18px',
+                borderRadius: 999,
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 700,
+                background: active ? C.gradientPrimary : 'transparent',
+                color: active ? '#06101A' : C.text,
+                transition: 'background 0.2s, color 0.2s',
+              }}
+            >
+              {label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function TrustBar() {
+  const items = [
+    ['🔒', 'Bank-level encryption'],
+    ['🛡️', 'Private & anonymous tracking'],
+    ['↺', 'Cancel anytime in 1 click'],
+  ]
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        gap: '10px 24px',
+        marginTop: 32,
+        color: C.muted,
+        fontSize: 12,
+      }}
+    >
+      {items.map(([icon, text]) => (
+        <span key={text} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span aria-hidden="true">{icon}</span>
+          {text}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function PricingSection({
   checkoutLoading,
   setCheckoutLoading,
   user,
 }) {
+  const [billing, setBilling] = useState('annual')
+  const isAnnual = billing === 'annual'
+  const proPlanType = isAnnual ? 'standard_annual' : 'standard_monthly'
+
   const freeFeatures = [
     'Track up to 2 platforms',
-    'Rolling 31-day history on each platform',
+    ROLLOVER_FEATURE,
     'Upload tip history by CSV',
     'Basic earnings dashboard',
     'Basic session analytics',
@@ -262,6 +410,15 @@ function PricingSection({
     'Comparative performance reports',
   ]
 
+  const cardBase = {
+    borderRadius: 20,
+    padding: 28,
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+    boxSizing: 'border-box',
+  }
+
   return (
     <section
       style={{
@@ -271,18 +428,13 @@ function PricingSection({
         alignItems: 'flex-start',
       }}
     >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: 1000,
-          margin: '0 auto',
-        }}
-      >
+      <div style={{ width: '100%', maxWidth: 1000, margin: '0 auto' }}>
+        <BillingToggle value={billing} onChange={setBilling} />
+
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns:
-              'repeat(auto-fit, minmax(290px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 290px), 1fr))',
             gap: 24,
             alignItems: 'stretch',
           }}
@@ -290,77 +442,48 @@ function PricingSection({
           {/* FREE PLAN */}
           <article
             style={{
+              ...cardBase,
               background: C.card,
-              border:
-                '1px solid rgba(22,244,255,0.22)',
-              borderRadius: 20,
-              padding: 28,
-              display: 'flex',
-              flexDirection: 'column',
+              border: '1px solid rgba(22,244,255,0.22)',
             }}
           >
-            <p
-              style={{
-                color: C.cyan,
-                fontSize: 12,
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                letterSpacing: '1.5px',
-                margin: '0 0 12px',
-              }}
-            >
-              Free
-            </p>
-
-            <div style={{ marginBottom: 8 }}>
-              <span
+            <div>
+              <p
                 style={{
-                  color: C.white,
-                  fontSize: 42,
-                  fontWeight: 900,
-                  letterSpacing: '-1px',
+                  color: C.cyan,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '1.5px',
+                  margin: '0 0 12px',
                 }}
               >
-                $0
-              </span>
+                Free
+              </p>
 
-              <span
-                style={{
-                  color: C.text,
-                  fontSize: 15,
-                  marginLeft: 4,
-                }}
-              >
-                /forever
-              </span>
-            </div>
+              <div style={{ marginBottom: 8 }}>
+                <span style={{ color: C.white, fontSize: 42, fontWeight: 900, letterSpacing: '-1px' }}>$0</span>
+                <span style={{ color: C.text, fontSize: 15, marginLeft: 4 }}>/forever</span>
+              </div>
 
-            <p
-              style={{
-                color: C.text,
-                fontSize: 14,
-                lineHeight: 1.6,
-                margin: '0 0 24px',
-              }}
-            >
-              Start tracking your earnings and using
-              CamCash without a credit card.
-            </p>
+              <p style={{ color: C.text, fontSize: 14, lineHeight: 1.6, margin: '0 0 24px' }}>
+                Start tracking your earnings and using CamCash without a credit card.
+              </p>
 
-            <div
-              style={{
-                flexGrow: 1,
-                marginBottom: 26,
-              }}
-            >
-              {freeFeatures.map((feature) => (
-                <CheckLine
-                  key={feature}
-                  color={C.cyan}
-                >
-                  {feature}
-                </CheckLine>
-              ))}
+              <div style={{ marginBottom: 26 }}>
+                {freeFeatures.map((feature) => (
+                  <CheckLine key={feature} color={C.cyan}>
+                    {feature === ROLLOVER_FEATURE ? (
+                      <>
+                        {feature}
+                        <RolloverInfo />
+                      </>
+                    ) : (
+                      feature
+                    )}
+                  </CheckLine>
+                ))}
+              </div>
             </div>
 
             <Button
@@ -368,32 +491,20 @@ function PricingSection({
               href={user ? '/dashboard' : '/landing'}
               onClick={() => track('pricing_cta_clicked', { cta: user ? 'free_card_dashboard' : 'free_card_start_free', logged_in: !!user })}
               variant="secondary"
-              style={{
-                display: 'block',
-                width: '100%',
-                padding: '13px 0',
-                fontSize: 14,
-                textAlign: 'center',
-              }}
+              style={{ display: 'block', width: '100%', padding: '13px 0', fontSize: 14, textAlign: 'center', marginTop: 'auto' }}
             >
-              {user
-                ? 'Continue to Dashboard →'
-                : 'Start Free →'}
+              {user ? 'Continue to Dashboard →' : 'Start Free →'}
             </Button>
           </article>
 
-          {/* STANDARD PLAN */}
+          {/* PRO PLAN */}
           <article
             style={{
+              ...cardBase,
               position: 'relative',
               background: C.card2,
               border: `2px solid ${C.pink}`,
-              borderRadius: 20,
-              padding: 28,
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow:
-                '0 0 36px rgba(255,43,174,0.16)',
+              boxShadow: '0 0 36px rgba(255,43,174,0.16)',
             }}
           >
             <div
@@ -411,125 +522,62 @@ function PricingSection({
                 letterSpacing: '0.6px',
               }}
             >
-              Most Popular
+              Creator Choice
             </div>
 
-            <p
-              style={{
-                color: C.pink,
-                fontSize: 12,
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                letterSpacing: '1.5px',
-                margin: '0 0 12px',
-              }}
-            >
-              Pro
-            </p>
-
-            <div style={{ marginBottom: 6 }}>
-              <span
+            <div>
+              <p
                 style={{
-                  color: C.white,
-                  fontSize: 42,
-                  fontWeight: 900,
-                  letterSpacing: '-1px',
+                  color: C.pink,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '1.5px',
+                  margin: '0 0 12px',
                 }}
               >
-                $9.99
-              </span>
+                Pro
+              </p>
 
-              <span
-                style={{
-                  color: C.text,
-                  fontSize: 15,
-                  marginLeft: 4,
-                }}
-              >
-                /month
-              </span>
+              <div style={{ marginBottom: 6 }}>
+                <span style={{ color: C.white, fontSize: 42, fontWeight: 900, letterSpacing: '-1px' }}>
+                  {isAnnual ? '$8.25' : '$9.99'}
+                </span>
+                <span style={{ color: C.text, fontSize: 15, marginLeft: 4 }}>/month</span>
+              </div>
+
+              <p style={{ color: C.cyan, fontWeight: 800, fontSize: 14, margin: '0 0 22px' }}>
+                {isAnnual
+                  ? 'Billed $99/year (Save $20 — 2 months free)'
+                  : 'Or $99/year (Save $20 — 2 months free)'}
+              </p>
+
+              <div style={{ marginBottom: 26 }}>
+                {standardFeatures.map((feature) => (
+                  <CheckLine key={feature} color={C.pink}>
+                    {feature}
+                  </CheckLine>
+                ))}
+              </div>
             </div>
 
-            <p
-              style={{
-                color: C.cyan,
-                fontWeight: 800,
-                fontSize: 14,
-                margin: '0 0 22px',
-              }}
-            >
-              Or $99 per year
-            </p>
-
-            <div
-              style={{
-                flexGrow: 1,
-                marginBottom: 26,
-              }}
-            >
-              {standardFeatures.map((feature) => (
-                <CheckLine
-                  key={feature}
-                  color={C.pink}
-                >
-                  {feature}
-                </CheckLine>
-              ))}
-            </div>
-
-            <div
-              style={{
-                display: 'grid',
-                gap: 12,
-              }}
-            >
+            <div style={{ marginTop: 'auto' }}>
               <Button
                 type="button"
-                onClick={() =>
-                  startCheckout(
-                    'standard_monthly',
-                    setCheckoutLoading
-                  )
-                }
+                onClick={() => startCheckout(proPlanType, setCheckoutLoading)}
                 disabled={checkoutLoading !== null}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  padding: '13px 0',
-                  fontSize: 14,
-                }}
+                style={{ display: 'block', width: '100%', padding: '13px 0', fontSize: 14 }}
               >
-                {checkoutLoading ===
-                'standard_monthly'
-                  ? 'Redirecting…'
-                  : 'Choose Monthly — $9.99'}
+                {checkoutLoading === proPlanType ? 'Redirecting…' : 'Unlock Pro Insights'}
               </Button>
-
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() =>
-                  startCheckout(
-                    'standard_annual',
-                    setCheckoutLoading
-                  )
-                }
-                disabled={checkoutLoading !== null}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  padding: '13px 0',
-                  fontSize: 14,
-                }}
-              >
-                {checkoutLoading ===
-                'standard_annual'
-                  ? 'Redirecting…'
-                  : 'Choose Annual — $99'}
-              </Button>
+              <p style={{ textAlign: 'center', fontSize: 12, color: C.text, margin: '12px 0 0' }}>
+                Pays for itself with one extra tip • Cancel anytime in 1 click
+              </p>
             </div>
           </article>
         </div>
+
+        <TrustBar />
       </div>
     </section>
   )
