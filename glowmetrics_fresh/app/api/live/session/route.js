@@ -46,7 +46,18 @@ export async function GET(req) {
   }
 
   let privateInterval = null
+  let session = data
   if (data?.id) {
+    // Free clock (starts at the first real tip). On any failure the field is
+    // left off, so the page shows no countdown rather than a wrong one; the
+    // limit itself is enforced in the database either way.
+    const { data: clock, error: clockError } = await supabase.rpc('get_live_free_clock')
+    if (clockError) {
+      console.error('[live-session] get_live_free_clock', clockError)
+    } else if (clock?.session_id === data.id) {
+      session = { ...data, free_clock: { started_at: clock.clock_started_at ?? null, paused_seconds: Number(clock.paused_seconds) || 0 } }
+    }
+
     const { data: open } = await supabase
       .from('live_private_intervals')
       .select('id,live_session_id,platform,username,started_at,rate_per_minute')
@@ -58,7 +69,7 @@ export async function GET(req) {
 
   return NextResponse.json(
     {
-      session: shapeLiveSession(data),
+      session: shapeLiveSession(session),
       privateInterval,
       limitEnded: data ? null : await recentLimitEndedSession(supabase, user.id),
     },

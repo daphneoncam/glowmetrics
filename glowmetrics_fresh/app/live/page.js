@@ -1028,9 +1028,10 @@ export default function LivePage() {
                     </button>
                   </>
                 )}
-                {engine.serverSession?.status === 'live' && (
-                  <PrivateShowControl engine={engine} />
-                )}
+                {/* Always shown: when there is no live stream it explains why
+                    (PrivateShowControl), instead of silently disappearing. */}
+                <PrivateShowControl engine={engine} />
+
                 {engine.serverSession?.status === 'live' && (
                   <button disabled={engine.actionPending} onClick={() => {
                     if (window.confirm('Clear this session\'s tip feed? Earnings, tip count, and top tipper for this session will reset. Historical/past sessions are never affected.')) engine.clearTips();
