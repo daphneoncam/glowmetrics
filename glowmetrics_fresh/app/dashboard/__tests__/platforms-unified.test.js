@@ -6,7 +6,7 @@
  */
 import React from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
-import PlatformsIntelligence from '../PlatformsIntelligence'
+import PlatformsIntelligence, { PlatformCell } from '../PlatformsIntelligence'
 import { buildAccount } from './dashboardFixtures'
 import { liveShow } from '../../../lib/sessions/__fixtures__/batch1-fixtures'
 import { aggregateRows, applyFreeAnalysisWindow } from '../../../lib/analytics'
@@ -22,7 +22,7 @@ function renderPage({ isPro = true, data = tips, shows = [], ...rest } = {}) {
   const analytics = useTips.length ? aggregateRows(useTips, TZ) : null
   return render(<PlatformsIntelligence analytics={analytics} tips={useTips} shows={shows} tz={TZ} isPro={isPro} onOpenPlanner={() => {}} onGoLive={() => {}} {...rest} />)
 }
-const setPeriod = (v) => fireEvent.change(screen.getByTestId('pu-period'), { target: { value: String(v) } })
+const setPeriod = (v) => fireEvent.click(screen.getByTestId(`pu-period-${v}`))
 
 test('every reference section renders in order', () => {
   const { container } = renderPage()
@@ -92,8 +92,11 @@ test('imported history alone: no estimated $/hr or hours are shown (no activity-
   renderPage()
   expect(screen.getByTestId('pu-hourly').textContent).toBe('—')
   expect(screen.getByTestId('pu-hours').textContent).toBe('—')
-  expect(screen.getByTestId('pu-best-window').textContent).toBe('Insufficient data')
-  expect(screen.getAllByTestId('pu-window-empty').length).toBe(3)
+  expect(screen.getByTestId('pu-best-window').textContent).toBe('Not ranked yet')
+  // One translucent progress card instead of stacked "not enough data" rows
+  expect(screen.getAllByTestId('pu-window-building')).toHaveLength(1)
+  expect(screen.queryAllByTestId('pu-window')).toHaveLength(0)
+  expect(screen.getByTestId('pu-window-building').textContent).toMatch(/3-hour windows|streaming dates/)
 })
 
 test('a verified Live show supplies the verified hours and $/hr', () => {
@@ -154,4 +157,61 @@ test('audience counts are per platform:username (same name on two platforms = tw
   // Active fans cell (first figure in the audience card)
   expect(screen.getByLabelText('Audience evolution').querySelector('b').textContent).toBe('2')
   expect(container.textContent).toContain('Fans are counted per platform')
+})
+
+
+// ── Phase A: Sessions styling, approved fixes ────────────────────────────────
+const DAYMS = 86400000
+const row = (id, daysAgo, platform, username, usd) => ({ id, date_time: new Date(NOW - daysAgo * DAYMS).toISOString(), platform, username, usd, live_session_id: null, source: 'upload' })
+
+test('Free records use only the Free reporting window; Pro uses full history', () => {
+  // Chaturbate is Free's primary platform, so old Chaturbate rows ARE in Free's entitled data:
+  // records must still ignore them for Free.
+  const t = [row(1, 60, 'chaturbate', 'old', 500), row(2, 60, 'chaturbate', 'old2', 400), row(3, 5, 'chaturbate', 'new', 20), row(4, 5, 'chaturbate', 'new2', 15)]
+  const free = renderPage({ isPro: false, data: t })
+  expect(screen.getByTestId('rec-high').textContent).toMatch(/\$35\.00/)
+  expect(screen.getByTestId('rec-high').textContent).not.toMatch(/\$900\.00/)
+  expect(screen.getByTestId('rec-scope').textContent).toMatch(/Last 30 days · Free/)
+  free.unmount()
+  renderPage({ isPro: true, data: t })
+  expect(screen.getByTestId('rec-high').textContent).toMatch(/\$900\.00/)
+  expect(screen.getByTestId('rec-scope').textContent).toBe('All history')
+})
+
+test('platform colours follow the approved mockup on this page; Sessions PlatformCell keeps its own', () => {
+  renderPage()
+  const badge = (name) => screen.getByTestId(`pu-card-${name}`).querySelector('span')
+  expect(badge('Chaturbate').style.background).toBe('rgb(34, 211, 238)')  // cyan
+  expect(badge('BongaCams').style.background).toBe('rgb(236, 72, 153)')   // magenta
+  expect(badge('MyFreeCams').style.background).toBe('rgb(168, 85, 247)')  // violet
+  // Split view platform buttons use the same mapping
+  fireEvent.click(screen.getByTestId('pi-view-split'))
+  const chaturbateBtn = screen.getAllByRole('button').find((b) => b.textContent === 'Chaturbate')
+  expect(chaturbateBtn.querySelector('span').style.background).toBe('rgb(34, 211, 238)')
+  // The shared PlatformCell (used by Sessions) is unchanged by default
+  const { container } = render(<PlatformCell platform="Chaturbate" />)
+  expect(container.querySelector('span span').style.background).toBe('rgb(168, 85, 247)')
+})
+
+test('trend pills: Pro only, from the prior period of the same length, labelled with the engine bands', () => {
+  const pro = renderPage({ isPro: true })
+  const pills = screen.queryAllByTestId(/^pu-state-/)
+  expect(pills.length).toBeGreaterThan(0)
+  for (const p of pills) expect(p.textContent).toMatch(/· (Surging|Growing|Steady|Declining)$/)
+  pro.unmount()
+  renderPage({ isPro: false })
+  expect(screen.queryAllByTestId(/^pu-state-/)).toHaveLength(0)
+})
+
+test('Sessions-style header: period pills, freshness status, hero actions', () => {
+  const onOpenPlanner = jest.fn()
+  renderPage({ onOpenPlanner })
+  expect(screen.getByTestId('pu-period-30').getAttribute('aria-pressed')).toBe('true')
+  setPeriod(90)
+  expect(screen.getByTestId('pu-period-90').getAttribute('aria-pressed')).toBe('true')
+  expect(screen.getByTestId('pi-updated').textContent).toMatch(/^Updated /)
+  fireEvent.click(screen.getByTestId('pu-plan'))
+  expect(onOpenPlanner).toHaveBeenCalled()
+  fireEvent.click(screen.getByTestId('pu-view-top'))
+  expect(screen.getByTestId('pi-view-split').getAttribute('aria-pressed')).toBe('true')
 })

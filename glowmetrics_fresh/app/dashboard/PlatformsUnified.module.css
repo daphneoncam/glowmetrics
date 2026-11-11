@@ -40,50 +40,84 @@
 
 /* Toolbar: reporting period (Sessions range-group control) */
 .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
-.periodLabel { position: relative; display: inline-flex; }
-.select {
-  appearance: none; padding: 7px 34px 7px 13px; border-radius: 10px; font-size: 12px; font-weight: 700; color: #22D3EE; cursor: pointer;
-  background: rgba(8,11,22,0.6) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%2322D3EE' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>") no-repeat right 12px center;
-  border: 1px solid #22D3EE; box-shadow: inset 0 0 0 999px rgba(34,211,238,0.06);
-}
 .periodNote { font-size: 12.5px; color: #94A3B8; max-width: 60ch; }
 
-/* KPI strip — Session Pulse feature card: illuminated gradient border, top reflection, pink/cyan glow */
+/* KPI strip — Sessions hero-stats card (SessionsOverview.js "today-stats"):
+   card() glass + cyan/pink corner glows + HERO_GRADIENT (CommandCenter.js), violet edge. */
 .kpis {
-  position: relative; isolation: isolate;
-  display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); padding: 16px 8px; border-radius: 22px;
+  position: relative; min-width: 0;
+  display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); padding: 22px 12px; border-radius: 16px;
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(34,211,238,0.20) 0%, transparent 45%),
+    radial-gradient(120% 140% at 100% 100%, rgba(236,72,153,0.20) 0%, transparent 45%),
+    linear-gradient(120deg, rgba(34,211,238,0.10) 0%, rgba(124,92,255,0.12) 46%, rgba(236,72,153,0.10) 100%),
+    rgba(10,13,26,0.86);
+  border: 1px solid rgba(124,92,255,0.45);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  box-shadow: 0 0 50px rgba(34,211,238,0.14), 0 0 70px rgba(236,72,153,0.12), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.kpi { display: flex; gap: 12px; align-items: center; padding: 4px 14px; min-width: 0; }
+.kpi + .kpi { border-left: 1px solid rgba(255,255,255,0.08); }
+.kpiIcon { flex: 0 0 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; color: #A78BFA; background: rgba(8,11,22,0.72); border: 1px solid rgba(255,255,255,0.08); filter: drop-shadow(0 0 10px rgba(167,139,250,0.35)); }
+.kpiBody { min-width: 0; }
+/* Sessions eyebrow */
+.kpiLabel { font-size: 11px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase; color: #94A3B8; overflow-wrap: anywhere; }
+.kpiValue { font-size: 24px; font-weight: 900; letter-spacing: -0.02em; line-height: 1.25; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; color: #F1F5F9; }
+.kpiSub { font-size: 12px; margin-top: 2px; line-height: 1.35; }
+
+/* CamCash Noticed — Session Pulse card (SessionsLuxury.module.css .pulseCard,
+   .pulseEyebrow/.pulseHeadline/.pulseSentence/.pulsePrimary/.pulseSecondary).
+   Single column: it shares a row with Platform Performance. */
+.pulse {
+  position: relative; isolation: isolate; min-width: 0; align-self: start;
+  padding: 22px 24px 24px; border-radius: 22px;
   background:
     radial-gradient(ellipse 60% 90% at 78% -10%, rgba(236,72,153,.24), transparent 62%),
     radial-gradient(ellipse 55% 80% at 0% 110%, rgba(34,211,238,.10), transparent 60%),
     radial-gradient(ellipse 50% 70% at 35% 0%, rgba(124,92,255,.12), transparent 60%),
     linear-gradient(120deg, rgba(13,17,38,.94), rgba(17,15,40,.9) 55%, rgba(30,16,46,.9));
-  border: 0;
   -webkit-backdrop-filter: blur(20px) saturate(130%); backdrop-filter: blur(20px) saturate(130%);
   box-shadow: 0 0 46px rgba(236,72,153,.20), 0 0 32px rgba(34,211,238,.10), 0 24px 64px rgba(1,0,8,.38), inset 0 1px rgba(255,255,255,.09);
 }
-.kpis::before {
+.pulse::before {
   content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
   border-radius: inherit; padding: 1.5px;
   background: linear-gradient(105deg, rgba(34,211,238,.85) 0%, rgba(124,92,255,.55) 32%, rgba(236,72,153,.75) 62%, rgba(255,120,200,.95) 100%);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor; mask-composite: exclude;
 }
-.kpis::after {
+.pulse::after {
   content: ''; position: absolute; left: 12%; right: 12%; top: 0; height: 1px; z-index: -1; pointer-events: none;
   background: linear-gradient(90deg, transparent, rgba(255,214,240,.85), transparent);
 }
-.kpi { display: flex; gap: 12px; align-items: center; padding: 4px 14px; min-width: 0; }
-.kpi + .kpi { border-left: 1px solid rgba(208,187,244,0.16); }
-.kpiIcon { flex: 0 0 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; color: #A78BFA; background: rgba(8,11,22,0.72); border: 1px solid rgba(255,255,255,0.08); filter: drop-shadow(0 0 10px rgba(167,139,250,0.35)); }
-.kpiBody { min-width: 0; }
-/* Sessions eyebrow */
-.kpiLabel { font-size: 11px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase; color: #94A3B8; overflow-wrap: anywhere; }
-.kpiValue { font-size: 21px; font-weight: 900; letter-spacing: -0.02em; line-height: 1.25; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; color: #F1F5F9; }
-.kpiSub { font-size: 12px; margin-top: 2px; line-height: 1.35; }
+.pulseEyebrow { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; color: #E8E4F4; font-size: 13.5px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; }
+.pulseEyebrow .pill { letter-spacing: 0.6px; }
+.pulseWave { flex: 0 0 auto; filter: drop-shadow(0 0 6px rgba(236,72,153,.45)); }
+.pulseHeadline { margin: 0 0 10px; color: #fff; font-size: clamp(17px, 1.3vw, 20px); font-weight: 800; line-height: 1.25; letter-spacing: -.02em; }
+.pulseSentence { margin: 0; color: #C9C5D8; font-size: 15px; font-weight: 500; line-height: 1.45; }
+.pulseActions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+.root .pulsePrimary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 44px; padding: 0 24px; border-radius: 13px; cursor: pointer;
+  color: #fff; font-size: 15px; font-weight: 780;
+  background: linear-gradient(90deg, #22D3EE 0%, #7C5CFF 52%, #EC4899 100%);
+  border: 1px solid rgba(255,214,240,.35);
+  box-shadow: 0 0 22px rgba(34,211,238,.22), 0 6px 24px rgba(236,72,153,.28), inset 0 1px rgba(255,255,255,.25);
+  transition: transform .18s ease, filter .18s ease;
+}
+.root .pulsePrimary:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.root .pulseSecondary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  min-height: 44px; padding: 0 20px; border-radius: 13px; cursor: pointer;
+  color: #F4F0FF; font-size: 14.5px; font-weight: 720;
+  background: rgba(23,18,44,.66); border: 1px solid rgba(236,72,153,.45);
+  box-shadow: inset 0 1px rgba(255,255,255,.05);
+  transition: background .18s ease, border-color .18s ease;
+}
+.root .pulseSecondary:hover { background: rgba(52,30,76,.72); border-color: rgba(236,72,153,.7); }
 
 /* Row: noticed + performance */
 .rowTop { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.5fr); gap: 16px; align-items: stretch; }
-.noticed { display: flex; flex-direction: column; align-self: start; }
 .insights { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 /* Sessions inset row */
 .insight { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 12px; background: rgba(8,11,22,0.72); border: 1px solid rgba(255,255,255,0.08); transition: transform .15s ease, border-color .2s ease; }
@@ -92,25 +126,58 @@
 .insightText { font-size: 13px; line-height: 1.45; color: #F1F5F9; min-width: 0; }
 .chev { color: #94A3B8; font-size: 16px; line-height: 1; }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
-/* Platform tile = Sessions inset row; hover = Sessions row hover */
-.pcard { text-align: left; color: inherit; border-radius: 12px; padding: 13px 14px; min-width: 0; cursor: pointer;
-  background: rgba(8,11,22,0.72); border: 1px solid rgba(255,255,255,0.08); transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease; }
-.pcard:hover { transform: translateY(-1px); border-color: rgba(34,211,238,0.35); }
-/* Top platform = Sessions selected row */
-.pcardTop { border: 1px solid #EC4899; box-shadow: 0 0 0 1px rgba(124,92,255,0.33), 0 0 22px rgba(236,72,153,0.25); background: rgba(30,18,52,0.75); }
-.pcardHead { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.pInitial { flex: 0 0 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; border: 1.5px solid; font-size: 12px; font-weight: 900; }
-.pName { font-size: 14px; font-weight: 800; overflow-wrap: anywhere; min-width: 0; }
-.crown { margin-left: auto; flex: 0 0 auto; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: #1A1205; background: #F59E0B; box-shadow: 0 0 10px rgba(245,158,11,0.5); }
-.pMoneyRow { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-.pMoney { font-size: 20px; font-weight: 900; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.pTrend { font-size: 11.5px; white-space: nowrap; }
-.pShare { font-size: 11.5px; color: #94A3B8; margin-top: 2px; }
-.bar { height: 6px; border-radius: 99px; background: rgba(255,255,255,0.07); overflow: hidden; margin: 10px 0 11px; }
-.bar > span { display: block; height: 100%; border-radius: 99px; }
-.pFoot { display: flex; justify-content: space-between; gap: 6px; flex-wrap: wrap; font-size: 11.5px; color: #94A3B8; }
-.pFoot b { color: #F1F5F9; font-weight: 800; }
-.pFoot small { font-size: 10px; }
+/* Platform card — Sessions "Today by Platform" card (SessionsOverview.js PlatformCard).
+   Per-platform tint, border and glow are set inline, exactly as Sessions does. */
+.pcard { container-type: inline-size; text-align: left; color: #F1F5F9; border-radius: 16px; padding: 16px 18px; min-width: 0; cursor: pointer;
+  display: flex; flex-direction: column; gap: 10px; border: 1px solid rgba(255,255,255,0.08);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease; }
+.pcard:hover { transform: translateY(-1px); }
+.pcard:focus-visible { outline: 2px solid var(--pc); outline-offset: 2px; }
+.pcardHead { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-width: 0; }
+.pBadge { flex: 0 0 auto; min-width: 30px; height: 30px; padding: 0 5px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; font-weight: 900; color: #0B0E1A; }
+.pName { display: inline-flex; align-items: center; gap: 8px; font-size: 19px; font-weight: 900; line-height: 1.3; white-space: nowrap; min-width: 0; }
+.crown { flex: 0 0 auto; display: inline-grid; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: #1A1205; background: #F59E0B; box-shadow: 0 0 10px rgba(245,158,11,0.5); }
+.pShareBox { margin-left: auto; text-align: right; flex: 0 0 auto; }
+.pShareBox b { display: block; font-size: 15px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.pShareBox small { display: block; font-size: 11px; color: #94A3B8; }
+/* Trend pill — Sessions Badge shape; colour by the engine's momentum band */
+.stPill { align-self: flex-start; font-size: 10.5px; font-weight: 800; letter-spacing: 0.3px; padding: 3px 9px; border-radius: 999px; border: 1px solid; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.stSurge { color: #22D3EE; border-color: rgba(34,211,238,0.6); background: rgba(34,211,238,0.10); box-shadow: 0 0 12px rgba(34,211,238,0.25); }
+.stUp { color: #10B981; border-color: rgba(16,185,129,0.6); background: rgba(16,185,129,0.10); box-shadow: 0 0 12px rgba(16,185,129,0.22); }
+.stFlat { color: #94A3B8; border-color: rgba(148,163,184,0.35); background: rgba(148,163,184,0.06); }
+.stDown { color: #F59E0B; border-color: rgba(245,158,11,0.6); background: rgba(245,158,11,0.10); box-shadow: 0 0 12px rgba(245,158,11,0.2); }
+.pMoneyRow { display: grid; grid-template-columns: auto minmax(40px, 1fr); align-items: end; gap: 14px; }
+.pMoney { font-size: 28px; font-weight: 900; line-height: 1; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.pMoneyLabel { font-size: 12.5px; color: #94A3B8; margin-top: 4px; }
+.bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden; margin-bottom: 8px; }
+.bar > span { display: block; height: 100%; }
+.pStats { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px; }
+.pStats > div { min-width: 0; padding-left: 10px; border-left: 1px solid rgba(255,255,255,0.08); }
+.pStats > div:first-child { padding-left: 0; border-left: 0; }
+.pStats b { display: block; font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pStats small { display: block; font-size: 11.5px; color: #94A3B8; }
+
+@container (max-width: 340px) {
+  .pName { font-size: 17px; }
+  .pShareBox { margin-left: 0; text-align: left; flex-basis: 100%; display: flex; align-items: baseline; gap: 6px; }
+  .pShareBox b, .pShareBox small { display: inline; }
+  .pMoney { font-size: 25px; }
+  .pStats { grid-template-columns: repeat(2, minmax(0,1fr)); row-gap: 8px; }
+  .pStats > div:nth-child(3) { padding-left: 0; border-left: 0; }
+}
+
+/* Progress (real counts only): empty states that show how close a figure is */
+.progress { display: block; height: 5px; border-radius: 99px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.progress > span { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #22D3EE, #7C5CFF 48%, #EC4899); box-shadow: 0 0 10px rgba(124,92,255,0.45); }
+.kpiProgress { display: grid; gap: 6px; }
+.building { display: grid; gap: 10px; padding: 12px 14px; border-radius: 12px;
+  background: linear-gradient(120deg, rgba(34,211,238,0.06), rgba(124,92,255,0.07) 50%, rgba(236,72,153,0.06)), rgba(8,11,22,0.6);
+  border: 1px solid rgba(124,92,255,0.28); }
+.buildingHead { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.buildingHead b { display: block; font-size: 13px; font-weight: 800; }
+.buildingHead small { display: block; font-size: 12px; color: #94A3B8; margin-top: 1px; }
+.scope { font-size: 10.5px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: #22D3EE; border: 1px solid rgba(34,211,238,0.5); background: rgba(34,211,238,0.08); padding: 2px 9px; border-radius: 999px; }
 
 /* Row: trends (wide) + side stack */
 .rowMid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
