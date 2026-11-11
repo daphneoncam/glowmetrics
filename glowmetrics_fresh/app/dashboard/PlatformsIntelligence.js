@@ -1,5 +1,5 @@
 "use client"
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   buildBusinessSnapshot,
   buildPlatformComparison,
@@ -12,7 +12,9 @@ import {
   formatHour,
 } from '../../lib/platformIntelligenceAnalytics'
 import { computeDataVaultStats } from './DashboardPreview'
-import PlatformsUnified from './PlatformsUnified'
+import PlatformsUnified, { colorFor } from './PlatformsUnified'
+import { RANGE_OPTIONS, FREE_WINDOW_DAYS } from '../../lib/platformHistory'
+import { timeAgo } from '../../lib/sessions/normalize'
 
 const C = {
   card: "#0d1322", card2: "#111829", border: "#1e2d45", border2: "#2a3f5f",
@@ -26,6 +28,9 @@ const PLATFORM_ACCENT = {
   camsoda: C.green, stripchat: C.blue, flirt4free: C.pink,
 }
 const accentFor = (p) => PLATFORM_ACCENT[(p || '').toLowerCase().trim()] || C.cyan
+// Platforms page colours (approved mockup): Chaturbate cyan, BongaCams magenta,
+// MyFreeCams violet. Used for every platform mark on this page.
+const pageAccent = (p) => colorFor(p)
 
 const fmt$ = (n) => n === null || n === undefined ? '—' : `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const fmt$0 = (n) => n === null || n === undefined ? '—' : `$${Math.round(Number(n)).toLocaleString('en-US')}`
@@ -168,10 +173,19 @@ function TrendCell({ trend }) {
   )
 }
 
-export function PlatformCell({ platform }) {
+// Stream Planner Pill (StreamPlanner.js) inside the Sessions range box (SessionsOverview.js).
+const pillBox = { display: 'flex', gap: 4, alignItems: 'center', background: 'rgba(8,11,22,0.6)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: 4 }
+const pillStyle = (active) => ({
+  padding: '5px 13px', fontSize: 12, borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s',
+  border: `1px solid ${active ? '#22d3ee' : 'rgba(255,255,255,0.08)'}`,
+  background: active ? 'rgba(34,211,238,0.10)' : 'transparent',
+  color: active ? '#22d3ee' : '#64748b', fontWeight: active ? 700 : 400,
+})
+
+export function PlatformCell({ platform, color = null }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <span style={{ width: 6, height: 6, borderRadius: 3, background: accentFor(platform), flexShrink: 0 }} />
+      <span style={{ width: 6, height: 6, borderRadius: 3, background: color || accentFor(platform), flexShrink: 0 }} />
       {platform}
     </span>
   )
@@ -328,9 +342,9 @@ function UnifiedView({ analytics, coverage, isPro, onOpenPlanner }) {
             <DataTable
               columns={[{ label: 'Platform', align: 'left' }, { label: 'Earnings' }, { label: 'Share' }, { label: 'Trend' }, { label: 'Tips' }, { label: 'Sessions' }]}
               rows={comparison.map(p => [
-                <PlatformCell key="p" platform={p.platform} />,
+                <PlatformCell key="p" platform={p.platform} color={pageAccent(p.platform)} />,
                 fmt$(p.earnings),
-                <ShareBar key="s" percent={p.earningsPercent} color={accentFor(p.platform)} />,
+                <ShareBar key="s" percent={p.earningsPercent} color={pageAccent(p.platform)} />,
                 <TrendCell key="t" trend={p.trend} />,
                 fmtN(p.tips),
                 fmtN(p.sessions),
@@ -347,7 +361,7 @@ function UnifiedView({ analytics, coverage, isPro, onOpenPlanner }) {
               <DataTable
                 columns={[{ label: 'Platform', align: 'left' }, { label: '$/hr' }, { label: 'Rated hours' }, { label: 'vs avg' }]}
                 rows={efficiency.map(p => [
-                  <PlatformCell key="p" platform={p.platform} />,
+                  <PlatformCell key="p" platform={p.platform} color={pageAccent(p.platform)} />,
                   fmt$(p.usdPerHour),
                   fmtH(p.rateHours),
                   <span key="v" style={{ color: p.vsAverage > 0 ? C.green : p.vsAverage < 0 ? C.red : C.muted }}>
@@ -376,7 +390,7 @@ function UnifiedView({ analytics, coverage, isPro, onOpenPlanner }) {
               { label: 'Tips' }, { label: 'Avg tip' }, { label: '$/session' }, { label: 'Sessions' }, { label: 'Time share' },
             ]}
             rows={comparison.map(p => [
-              <PlatformCell key="p" platform={p.platform} />,
+              <PlatformCell key="p" platform={p.platform} color={pageAccent(p.platform)} />,
               fmt$(p.earnings),
               p.hours > 0 ? fmtH(p.hours) : '—',
               fmtN(p.tips),
@@ -407,7 +421,7 @@ function UnifiedView({ analytics, coverage, isPro, onOpenPlanner }) {
                   facts={`${timeIntel.bestDay.day} · ${fmt$(timeIntel.bestDay.avg)} typical · ${fmtN(timeIntel.bestDay.count)} days`} />
               )}
               {topRevenue && (
-                <FactRow label="Strongest platform" accent={accentFor(topRevenue.platform)}
+                <FactRow label="Strongest platform" accent={pageAccent(topRevenue.platform)}
                   facts={`${topRevenue.platform} · ${fmt$(topRevenue.earnings)} · ${topRevenue.earningsPercent}% of earnings`} />
               )}
               {isPro ? (
@@ -420,7 +434,7 @@ function UnifiedView({ analytics, coverage, isPro, onOpenPlanner }) {
                     <DataTable
                       columns={[{ label: 'Per platform', align: 'left' }, { label: 'Best hour' }, { label: 'Best day' }]}
                       rows={rows.map(r => [
-                        <PlatformCell key="p" platform={r.platform} />,
+                        <PlatformCell key="p" platform={r.platform} color={pageAccent(r.platform)} />,
                         r.t.hour ? formatHour(r.t.hour.hour) : '—',
                         r.t.bestDay ? r.t.bestDay.day : '—',
                       ])}
@@ -448,7 +462,7 @@ function UnifiedView({ analytics, coverage, isPro, onOpenPlanner }) {
                 <DataTable
                   columns={[{ label: 'Top supporters', align: 'left' }, { label: 'Platform', align: 'left' }, { label: 'Tips' }, { label: 'Total' }]}
                   rows={fans.visibleSpenders.map(f => [
-                    f.username, <PlatformCell key="p" platform={f.platform} />, fmtN(f.tipCount), fmt$(f.earnings),
+                    f.username, <PlatformCell key="p" platform={f.platform} color={pageAccent(f.platform)} />, fmtN(f.tipCount), fmt$(f.earnings),
                   ])}
                 />
               </div>
@@ -511,7 +525,7 @@ function UnifiedView({ analytics, coverage, isPro, onOpenPlanner }) {
 
 function SplitView({ analytics, platformName, isPro }) {
   const snap = useMemo(() => buildPlatformSnapshot(analytics, platformName), [analytics, platformName])
-  const accent = accentFor(platformName)
+  const accent = pageAccent(platformName)
 
   if (!snap) {
     return <Empty>{platformName} has no meaningful session data yet, so there is nothing reliable to break down.</Empty>
@@ -637,6 +651,12 @@ export default function PlatformsIntelligence({ analytics = null, tips = [], sho
   const [view, setView] = useState('unified')
   const [selectedPlatform, setSelectedPlatform] = useState(null)
   const [breakdownOpen, setBreakdownOpen] = useState(false)
+  const [period, setPeriod] = useState(30)
+  // Sessions-style freshness indicator: when this data last changed, ticking.
+  const [loadedAt, setLoadedAt] = useState(() => new Date())
+  const [clock, setClock] = useState(() => new Date())
+  useEffect(() => { setLoadedAt(new Date()) }, [tips, shows])
+  useEffect(() => { const id = setInterval(() => setClock(new Date()), 15000); return () => clearInterval(id) }, [])
 
   // Coverage reads the account's real import span via the canonical vault
   // helper rather than deriving its own.
@@ -667,34 +687,45 @@ export default function PlatformsIntelligence({ analytics = null, tips = [], sho
         }
       `}</style>
 
-      <div className="pi-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', marginBottom: 16 }}>
+      <div className="pi-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', marginBottom: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
           <span aria-hidden="true" style={{ flex: '0 0 50px', height: 50, borderRadius: '50%', display: 'grid', placeItems: 'center', color: C.pink, background: 'radial-gradient(circle at 30% 30%, rgba(236,72,153,0.28), rgba(124,92,255,0.12))', border: '1px solid rgba(236,72,153,0.35)', boxShadow: '0 0 22px rgba(236,72,153,0.22)' }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 20V13M10 20V8M15 20V11M20 20V4" /></svg>
           </span>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.text }}>Platforms</div>
-            <h1 style={{ margin: '2px 0 0', fontSize: 'clamp(22px, 2.4vw, 30px)', fontWeight: 850, letterSpacing: '-0.02em', color: C.white }}>Platform Intelligence</h1>
-            <div style={{ fontSize: 13, color: C.text, marginTop: 2 }}>Cross-platform performance, trends &amp; opportunities</div>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: C.text }}>Platforms</div>
+            {/* Sessions page title: 34px / 900; subtitle 14px */}
+            <h1 style={{ margin: '2px 0 0', fontSize: 'clamp(26px, 2.6vw, 34px)', fontWeight: 900, letterSpacing: '-0.01em', color: C.white }}>Platform Intelligence</h1>
+            <div style={{ fontSize: 14, color: C.text, marginTop: 2 }}>Cross-platform performance, trends &amp; opportunities</div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          {/* Same control as the Sessions range group (Stream Planner Pill styling) */}
-          <div role="group" aria-label="View" style={{ display: 'flex', gap: 4, background: 'rgba(8,11,22,0.6)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: 4 }}>
+          {/* Same controls as the Sessions header: Pill groups in the range box */}
+          <div role="group" aria-label="View" style={pillBox}>
             {[['unified', 'Unified View'], ['split', 'Split View']].map(([v, l]) => (
-              <button key={v} data-testid={`pi-view-${v}`} aria-pressed={view === v} onClick={() => setView(v)} style={{
-                padding: '5px 13px', fontSize: 12, borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s',
-                border: `1px solid ${view === v ? '#22d3ee' : 'rgba(255,255,255,0.08)'}`,
-                background: view === v ? 'rgba(34,211,238,0.10)' : 'transparent',
-                color: view === v ? '#22d3ee' : '#64748b', fontWeight: view === v ? 700 : 400,
-              }}>{l}</button>
+              <button key={v} data-testid={`pi-view-${v}`} aria-pressed={view === v} onClick={() => setView(v)} style={pillStyle(view === v)}>{l}</button>
             ))}
           </div>
+          {view === 'unified' && (
+            <div role="group" aria-label="Reporting period" data-testid="pu-period" style={pillBox}>
+              <span style={{ fontSize: 11, color: '#64748b', padding: '0 6px' }}>Range</span>
+              {RANGE_OPTIONS.map((d) => (
+                <button key={d} data-testid={`pu-period-${d}`} aria-pressed={period === d} onClick={() => setPeriod(d)} style={pillStyle(period === d)}
+                  title={!isPro && d > FREE_WINDOW_DAYS ? `Free shows the last ${FREE_WINDOW_DAYS} days` : undefined}>
+                  {d} Days{!isPro && d > FREE_WINDOW_DAYS ? ' · Pro' : ''}
+                </button>
+              ))}
+            </div>
+          )}
+          <span data-testid="pi-updated" style={{ fontSize: 12, color: C.text, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 7, height: 7, borderRadius: 4, background: C.green }} />Updated {timeAgo(loadedAt.toISOString(), clock)}
+          </span>
           {onGoLive && (
+            /* Live Mode's start button (page.js): 135deg emerald→cyan, 32px glow */
             <button data-testid="pi-go-live" onClick={onGoLive} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 18px', fontSize: 14, fontWeight: 800,
-              borderRadius: 11, cursor: 'pointer', border: 'none', color: '#04120d',
-              background: 'linear-gradient(90deg, #10B981, #22D3EE)', boxShadow: '0 0 18px rgba(16,185,129,0.3)',
+              display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 20px', fontSize: 14, fontWeight: 800,
+              borderRadius: 12, cursor: 'pointer', border: 'none', color: C.white,
+              background: 'linear-gradient(135deg, #10B981, #22D3EE)', boxShadow: '0 0 32px rgba(16,185,129,0.4)',
             }}><span aria-hidden="true">⚡</span>Go Live</button>
           )}
         </div>
@@ -706,7 +737,7 @@ export default function PlatformsIntelligence({ analytics = null, tips = [], sho
         </Empty>
       ) : view === 'unified' ? (
         <>
-          <PlatformsUnified analytics={analytics} tips={tips} shows={shows} tz={tz} isPro={isPro} onSelectPlatform={p => { setSelectedPlatform(p); setView('split') }} onOpenPlanner={onOpenPlanner} />
+          <PlatformsUnified analytics={analytics} tips={tips} shows={shows} tz={tz} isPro={isPro} selected={period} onSelectPlatform={p => { setSelectedPlatform(p); setView('split') }} onOpenPlanner={onOpenPlanner} />
           {/* Detailed tables (efficiency, comparison, supporters, next move) stay available, collapsed. */}
           <div style={{ marginTop: 16, border: '1px solid rgba(168,85,247,0.22)', borderRadius: 16, background: 'rgba(10,12,28,0.7)' }}>
             <button data-testid="pi-breakdown-toggle" aria-expanded={breakdownOpen} onClick={() => setBreakdownOpen(v => !v)} style={{
@@ -723,11 +754,11 @@ export default function PlatformsIntelligence({ analytics = null, tips = [], sho
               <button key={p} onClick={() => setSelectedPlatform(p)} style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 padding: '5px 11px', fontSize: 11.5, fontWeight: 600, borderRadius: 7, cursor: 'pointer',
-                background: activePlatform === p ? `${accentFor(p)}1f` : 'transparent',
-                border: `1px solid ${activePlatform === p ? `${accentFor(p)}88` : C.border}`,
+                background: activePlatform === p ? `${pageAccent(p)}1f` : 'transparent',
+                border: `1px solid ${activePlatform === p ? `${pageAccent(p)}88` : C.border}`,
                 color: activePlatform === p ? C.white : C.text,
               }}>
-                <span style={{ width: 6, height: 6, borderRadius: 3, background: accentFor(p) }} />
+                <span style={{ width: 6, height: 6, borderRadius: 3, background: pageAccent(p) }} />
                 {p}
               </button>
             ))}

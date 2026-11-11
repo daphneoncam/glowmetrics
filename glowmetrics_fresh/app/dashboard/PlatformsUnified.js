@@ -13,7 +13,7 @@ import {
 import {
   effectiveRangeDays, rangeBounds, tipsInRange, monthlySeries, verifiedTotals, threeHourWindows,
   audienceCounts, pctChange, allTimeDailyHigh, growthStreak, audienceMilestone, platformGrowthRecord, PLATFORM_GROWTH_MIN_BASE,
-  RANGE_OPTIONS, FREE_WINDOW_DAYS, MIN_WINDOW_DATES, MIN_GROWTH_STREAK,
+  FREE_WINDOW_DAYS, MIN_WINDOW_DATES, MIN_GROWTH_STREAK,
 } from '../../lib/platformHistory'
 import S from './PlatformsUnified.module.css'
 
@@ -84,25 +84,59 @@ function Kpi({ icon, label, value, sub, testId }) {
   )
 }
 
-function PlatformCard({ p, top, pct, verified, onSelect }) {
+// Period-over-period state, using the engine's own momentum bands
+// (lib/analytics.js: >50 Surging, >10 Growing, ±10 Steady, < -10 Declining).
+function trendState(pct) {
+  if (pct === null || pct === undefined || !Number.isFinite(pct)) return null
+  if (pct > 50) return { label: 'Surging', cls: S.stSurge }
+  if (pct > 10) return { label: 'Growing', cls: S.stUp }
+  if (pct >= -10) return { label: 'Steady', cls: S.stFlat }
+  return { label: 'Declining', cls: S.stDown }
+}
+
+// Same construction as the Sessions "Today by Platform" card (SessionsOverview.js
+// PlatformCard): platform-tinted glass, platform border + glow, solid badge,
+// share at top right, big total with a glowing bar, 4-column stats row.
+function PlatformCard({ p, top, pct, verified, onSelect, days }) {
   const color = colorFor(p.platform)
+  const key = String(p.platform).toLowerCase().replace(/[^a-z]/g, '')
+  const st = trendState(pct)
+  const share = Math.min(100, Math.max(0, p.earningsPercent || 0))
   return (
-    <button type="button" data-testid={`pu-card-${p.platform}`} onClick={() => onSelect && onSelect(p.platform)} className={cx(S.pcard, top && S.pcardTop)} style={{ '--pc': color }} aria-label={`Open ${p.platform} details`}>
+    <button type="button" data-testid={`pu-card-${p.platform}`} onClick={() => onSelect && onSelect(p.platform)}
+      className={cx(S.pcard, top && S.pcardTop)} aria-label={`Open ${p.platform} details`}
+      style={{
+        '--pc': color,
+        background: `radial-gradient(90% 120% at 0% 0%, ${color}26 0%, transparent 55%), rgba(12,15,28,0.82)`,
+        borderColor: `${color}${top ? 'cc' : '66'}`,
+        boxShadow: top ? `0 0 34px ${color}40` : `0 0 18px ${color}1f`,
+      }}>
       <div className={S.pcardHead}>
-        <span className={S.pInitial} style={{ color, borderColor: color }}>{String(p.platform).charAt(0).toUpperCase()}</span>
-        <span className={S.pName}>{p.platform}</span>
-        {top && <span className={S.crown} title="Top platform in this period" aria-label="Top platform"><Icon d={I.crown} size={13} /></span>}
+        <span className={S.pBadge} style={{ background: color }}>{String(p.platform).slice(0, key === 'myfreecams' ? 3 : 1).toUpperCase()}</span>
+        <span className={S.pName}>{p.platform}{top && <span className={S.crown} title="Top platform in this period" aria-label="Top platform"><Icon d={I.crown} size={13} /></span>}</span>
+        <span className={S.pShareBox}><b style={{ color }}>{p.earningsPercent}%</b><small>of earnings</small></span>
       </div>
+      {st && (
+        <span data-testid={`pu-state-${p.platform}`} className={cx(S.stPill, st.cls)} title={`This ${days}-day period vs the ${days} days before it`}>
+          {pct > 0 ? '▲' : pct < 0 ? '▼' : '='} {pct > 0 ? '+' : ''}{Math.round(pct * 10) / 10}% · {st.label}
+        </span>
+      )}
       <div className={S.pMoneyRow}>
-        <span className={S.pMoney}>{money(p.earnings)}</span>
-        <span className={S.pTrend}><Change pct={pct} /></span>
+        <div>
+          <div className={S.pMoney}>{money(p.earnings)}</div>
+          <div className={S.pMoneyLabel}>Total Earned</div>
+        </div>
+        <div className={S.bar}><span style={{ width: `${share}%`, background: color, boxShadow: `0 0 10px ${color}` }} /></div>
       </div>
-      <div className={S.pShare}>{p.earningsPercent}% of total</div>
-      <div className={S.bar}><span style={{ width: `${Math.min(100, Math.max(0, p.earningsPercent || 0))}%`, background: color }} /></div>
-      <div className={S.pFoot}>
-        <span title="Verified Live Mode hours only; imported history has no streamed time"><b>{verified.usdPerHour === null ? '—' : money(verified.usdPerHour)}</b>{verified.usdPerHour !== null && <small> /hr est.</small>}</span>
-        <span><b>{verified.hours > 0 ? `${verified.hours}h` : '—'}</b> hours</span>
-        <span><b>{num(p.tips)}</b> tips</span>
+      <div className={S.pStats}>
+        {[
+          [verified.hours > 0 ? `${verified.hours}h` : '—', 'Hours', 'Verified Live Mode hours only'],
+          [verified.usdPerHour === null ? '—' : money(verified.usdPerHour), verified.usdPerHour === null ? '$/Hr' : '$/Hr est.', 'Earnings per verified streamed hour'],
+          [num(p.tips), p.tips === 1 ? 'Tip' : 'Tips', null],
+          [p.avgTipSize > 0 ? money(p.avgTipSize) : '—', 'Avg tip', null],
+        ].map(([v, l, t]) => (
+          <div key={l} title={t || undefined}><b>{v}</b><small>{l}</small></div>
+        ))}
       </div>
     </button>
   )
@@ -158,9 +192,8 @@ function TrendChart({ months, platforms, series, metric, width }) {
 
 function Empty({ children }) { return <p className={S.empty}>{children}</p> }
 
-export default function PlatformsUnified({ analytics, tips = [], shows = [], tz = 'UTC', isPro = false, onSelectPlatform = null, onOpenPlanner = null }) {
+export default function PlatformsUnified({ analytics, tips = [], shows = [], tz = 'UTC', isPro = false, selected = 30, onSelectPlatform = null, onOpenPlanner = null }) {
   const [now] = useState(() => Date.now())
-  const [selected, setSelected] = useState(30)
   const [metric, setMetric] = useState('earnings')
   const [chartRef, chartWidth] = useWidth()
 
@@ -187,11 +220,13 @@ export default function PlatformsUnified({ analytics, tips = [], shows = [], tz 
   const audience = useMemo(() => audienceCounts({ tips, periodStart: range.start, periodEnd: range.end }), [tips, range])
   const priorAudience = useMemo(() => (isPro ? audienceCounts({ tips, periodStart: prior.start, periodEnd: prior.end }) : null), [tips, prior, isPro])
 
-  // All-time records and milestones (within the history this plan can see).
-  const dailyHigh = useMemo(() => allTimeDailyHigh({ tips, tz }), [tips, tz])
-  const streak = useMemo(() => growthStreak({ tips, tz, nowMs: now }), [tips, tz, now])
-  const milestone = useMemo(() => audienceMilestone({ tips }), [tips])
-  const growth = useMemo(() => platformGrowthRecord({ tips, tz, nowMs: now }), [tips, tz, now])
+  // Records and milestones. Pro: full history. Free: ONLY the Free reporting
+  // window (same rows as every other Free figure) — never older entitled history.
+  const recordTips = useMemo(() => (isPro ? tips : tipsInRange(tips, range)), [isPro, tips, range])
+  const dailyHigh = useMemo(() => allTimeDailyHigh({ tips: recordTips, tz }), [recordTips, tz])
+  const streak = useMemo(() => growthStreak({ tips: recordTips, tz, nowMs: now }), [recordTips, tz, now])
+  const milestone = useMemo(() => audienceMilestone({ tips: recordTips }), [recordTips])
+  const growth = useMemo(() => platformGrowthRecord({ tips: recordTips, tz, nowMs: now }), [recordTips, tz, now])
 
   // Per-platform verified hours and $/hr over the selected range.
   const verifiedByPlatform = useMemo(() => {
@@ -205,7 +240,10 @@ export default function PlatformsUnified({ analytics, tips = [], shows = [], tz 
   }, [series])
 
   const topRanked = windows.ranked[0] || null
-  const timingRows = [0, 1, 2].map((i) => windows.ranked[i] || null)
+  const rankedRows = windows.ranked.slice(0, 3)
+  // The unranked window with the most verified streaming dates so far (real counts only).
+  const building = windows.windows.filter((w) => w.hours > 0 && !w.qualifies).sort((a, b) => b.dates - a.dates || b.hours - a.hours)[0] || null
+  const buildDates = building ? Math.min(building.dates, MIN_WINDOW_DATES) : 0
   const overallRate = totals.usdPerHour
   const pct = (cur, prv) => (isPro ? pctChange(cur, prv) : null)
   const hasAnyData = comparison.length > 0 || totals.shows > 0
@@ -218,19 +256,13 @@ export default function PlatformsUnified({ analytics, tips = [], shows = [], tz 
     <div className={S.root} data-testid="platforms-unified">
       {/* Reporting period (selector really filters everything below except records) */}
       <div className={S.toolbar}>
-        <label className={S.periodLabel}>
-          <span className={S.visuallyHidden}>Reporting period</span>
-          <select data-testid="pu-period" className={S.select} value={selected} onChange={(e) => setSelected(Number(e.target.value))}>
-            {RANGE_OPTIONS.map((d) => <option key={d} value={d}>{d === 90 ? 'Last 90 Days' : 'Last 30 Days'}{!isPro && d > FREE_WINDOW_DAYS ? ' (Pro)' : ''}</option>)}
-          </select>
-        </label>
         <span className={S.periodNote} data-testid="pu-period-note">
           {clamped ? `Free shows the last ${FREE_WINDOW_DAYS} days. Pro unlocks 90-day history and comparisons.` : isPro ? `Showing ${days} days · comparisons vs the prior ${days} days` : `Showing ${days} days · Pro adds comparisons vs prior periods`}
         </span>
       </div>
 
       {/* A. KPI strip */}
-      <section className={cx(S.glass, S.kpis)} aria-label="Business summary">
+      <section className={S.kpis} aria-label="Business summary">
         <Kpi icon="coins" label="Total earned" testId="pu-total" value={money(snapshot?.totalEarnings ?? 0)}
           sub={isPro ? <><Change pct={pct(snapshot?.totalEarnings ?? 0, priorSnapshot?.totalEarnings ?? null)} /> <span className={S.muted}>vs prior {days} days</span></> : <span className={S.muted}>Pro: change vs prior period</span>} />
         <Kpi icon="gauge" label="Avg $/hour" testId="pu-hourly" value={overallRate === null ? '—' : `${money(overallRate)}`}
@@ -240,28 +272,42 @@ export default function PlatformsUnified({ analytics, tips = [], shows = [], tz 
         <Kpi icon="crown" label="Top platform" testId="pu-top" value={comparison[0] ? comparison[0].platform : '—'}
           sub={comparison[0] ? <span className={S.muted}>{comparison[0].earningsPercent}% of earnings</span> : null} />
         <Kpi icon="calendar" label="Best window (all platforms)" testId="pu-best-window"
-          value={topRanked ? topRanked.label : 'Insufficient data'}
-          sub={topRanked ? <span className={S.muted}>{money(topRanked.usdPerHour)}/hr est. · {topRanked.dates} dates</span> : <span className={S.muted}>Needs 3 dates with verified streaming</span>} />
+          value={topRanked ? topRanked.label : 'Not ranked yet'}
+          sub={topRanked ? <span className={S.muted}>{money(topRanked.usdPerHour)}/hr est. · {topRanked.dates} dates</span> : (
+            <span className={S.kpiProgress}>
+              <span className={S.muted}>{buildDates} of {MIN_WINDOW_DATES} streaming dates</span>
+              <span className={S.progress}><span style={{ width: `${Math.round((buildDates / MIN_WINDOW_DATES) * 100)}%` }} /></span>
+            </span>
+          )} />
       </section>
 
       {/* B. CamCash Noticed + Platform Performance */}
       <div className={S.rowTop}>
-        <section className={cx(S.glass, S.noticed)} aria-label="CamCash noticed">
-          <div className={S.head}>
-            <span className={S.titleMagenta}><Icon d={I.spark} size={17} />CamCash Noticed</span>
+        <section className={S.pulse} aria-label="CamCash noticed">
+          <div className={S.pulseEyebrow}>
+            <svg className={S.pulseWave} width="30" height="20" viewBox="0 0 34 24" fill="none" aria-hidden="true"><path d="M1 12h7l3-8 5 16 4-12 3 4h10" stroke="url(#puWave)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /><defs><linearGradient id="puWave" x1="0" y1="0" x2="34" y2="0" gradientUnits="userSpaceOnUse"><stop stopColor="#22D3EE" /><stop offset=".5" stopColor="#7C5CFF" /><stop offset="1" stopColor="#EC4899" /></linearGradient></defs></svg>
+            <span>CamCash Noticed</span>
             {noticed.length > 0 && <span className={S.pill}>{noticed.length} new {noticed.length === 1 ? 'insight' : 'insights'}</span>}
           </div>
-          {noticed.length === 0 ? <Empty>Nothing stands out yet in this period. Findings appear as more comparable history comes in.</Empty> : (
-            <ul className={S.insights}>
-              {noticed.map((n, i) => (
-                <li key={i} className={S.insight} data-testid="pu-insight">
-                  <span className={S.insightIcon} aria-hidden="true">{n.icon}</span>
-                  <span className={S.insightText}>{n.text}</span>
-                  <span className={S.chev} aria-hidden="true">›</span>
-                </li>
-              ))}
-            </ul>
+          {noticed.length === 0 ? <p className={S.pulseSentence}>Nothing stands out yet in this period. Findings appear as more comparable history comes in.</p> : (
+            <>
+              <h2 className={S.pulseHeadline} data-testid="pu-insight"><span aria-hidden="true">{noticed[0].icon} </span>{noticed[0].text}</h2>
+              {noticed.length > 1 && (
+                <ul className={S.insights}>
+                  {noticed.slice(1).map((n, i) => (
+                    <li key={i} className={S.insight} data-testid="pu-insight">
+                      <span className={S.insightIcon} aria-hidden="true">{n.icon}</span>
+                      <span className={S.insightText}>{n.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
+          <div className={S.pulseActions}>
+            {comparison[0] && onSelectPlatform && <button type="button" data-testid="pu-view-top" className={S.pulsePrimary} onClick={() => onSelectPlatform(comparison[0].platform)}>View {comparison[0].platform} <span aria-hidden="true">→</span></button>}
+            {onOpenPlanner && <button type="button" data-testid="pu-plan" className={S.pulseSecondary} onClick={onOpenPlanner}><Icon d={I.calendar} size={16} />Plan a stream</button>}
+          </div>
         </section>
 
         <section className={cx(S.glass, S.perf)} aria-label="Platform performance">
@@ -272,7 +318,7 @@ export default function PlatformsUnified({ analytics, tips = [], shows = [], tz 
           {comparison.length === 0 ? <Empty>No platform has earnings in this period.</Empty> : (
             <div className={S.cards}>
               {comparison.map((p, i) => (
-                <PlatformCard key={p.platform} p={p} top={i === 0 && comparison.length > 1}
+                <PlatformCard key={p.platform} p={p} top={i === 0 && comparison.length > 1} days={days}
                   pct={pct(p.earnings, priorByPlatform[p.platform]?.earnings ?? null)}
                   verified={verifiedByPlatform[p.platform] || { hours: 0, usdPerHour: null }}
                   onSelect={onSelectPlatform} />
@@ -330,21 +376,26 @@ export default function PlatformsUnified({ analytics, tips = [], shows = [], tz 
               {onOpenPlanner && <button type="button" className={S.link} onClick={onOpenPlanner}>Plan a stream →</button>}
             </div>
             <ol className={S.tlist}>
-              {timingRows.map((w, i) => w ? (
+              {rankedRows.map((w, i) => (
                 <li key={w.startHour} className={cx(S.trow, i === 0 && S.trowTop)} data-testid="pu-window">
                   <span className={S.tIcon}><Icon d={windowIcon(w)} size={17} /></span>
                   <span className={S.tLabel}>{w.label}{i === 0 && <span className={S.tag}>Highest $/hr</span>}</span>
                   <span className={S.tPerf}>{overallRate ? <Change pct={pctChange(w.usdPerHour, overallRate)} /> : null}</span>
                   <b className={S.tRate}>{money(w.usdPerHour)}/hr</b>
                 </li>
-              ) : (
-                <li key={`empty-${i}`} className={cx(S.trow, S.trowEmpty)} data-testid="pu-window-empty">
-                  <span className={S.tIcon}><Icon d={I.lock} size={15} /></span>
-                  <span className={S.tLabel}>Not enough verified data</span>
-                  <span className={S.tPerf} />
-                  <span className={S.tRate}>—</span>
-                </li>
               ))}
+              {rankedRows.length < 3 && (
+                <li className={S.building} data-testid="pu-window-building">
+                  <div className={S.buildingHead}>
+                    <span className={S.tIcon}><Icon d={I.clock} size={16} /></span>
+                    <span>
+                      <b>{building ? `Closest window: ${building.label}` : rankedRows.length ? 'More windows unlock as you stream' : 'Your best 3-hour windows will rank here'}</b>
+                      <small>{building ? `${buildDates} of ${MIN_WINDOW_DATES} streaming dates in this window` : 'Stream with Live Mode on 3 separate days in the same time slot'}</small>
+                    </span>
+                  </div>
+                  <span className={S.progress}><span style={{ width: `${Math.round((buildDates / MIN_WINDOW_DATES) * 100)}%` }} /></span>
+                </li>
+              )}
             </ol>
             <p className={S.footnote}>Ranked by earnings per verified streamed hour. A window needs streaming on at least {MIN_WINDOW_DATES} separate local dates.</p>
           </section>
@@ -353,7 +404,10 @@ export default function PlatformsUnified({ analytics, tips = [], shows = [], tz 
 
       {/* D. Records & milestones */}
       <section className={cx(S.glass, S.records)} aria-label="Records and milestones">
-        <div className={S.head}><span className={S.titleSm}><span className={S.titleIcon}><Icon d={I.trophy} size={16} /></span>Records &amp; Milestones</span></div>
+        <div className={S.head}>
+          <span className={S.titleSm}><span className={S.titleIcon}><Icon d={I.trophy} size={16} /></span>Records &amp; Milestones</span>
+          <span className={S.scope} data-testid="rec-scope">{isPro ? 'All history' : `Last ${days} days · Free`}</span>
+        </div>
         <div className={S.recGrid}>
           <div className={S.rec} data-testid="rec-high">
             <small>All-time high</small>
