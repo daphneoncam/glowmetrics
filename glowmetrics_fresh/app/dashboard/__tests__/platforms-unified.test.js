@@ -36,9 +36,27 @@ test('every reference section renders in order', () => {
   expect(screen.getAllByTestId(/^pu-card-/).length).toBeGreaterThan(0)
 })
 
-test('Platform growth is not invented: it reads "Definition pending"', () => {
+test('Platform growth shows the approved record or an honest empty state, never a placeholder', () => {
   renderPage()
-  expect(screen.getByText('Definition pending')).toBeTruthy()
+  const card = screen.getByTestId('rec-platform')
+  expect(card.textContent).not.toMatch(/Definition pending/)
+  expect(card.textContent).toMatch(/best month-over-month gain|None yet/)
+})
+
+test('Platform growth uses a single platform and the $50 minimum base', () => {
+  const nowD = new Date(NOW)
+  const monthStart = (back) => Date.UTC(nowD.getUTCFullYear(), nowD.getUTCMonth() - back, 15, 16)
+  const t = [
+    { id: 1, date_time: new Date(monthStart(2)).toISOString(), platform: 'chaturbate', username: 'a', usd: 100, live_session_id: null, source: 'upload' },
+    { id: 2, date_time: new Date(monthStart(1)).toISOString(), platform: 'chaturbate', username: 'b', usd: 250, live_session_id: null, source: 'upload' },
+    { id: 3, date_time: new Date(monthStart(2)).toISOString(), platform: 'bongacams', username: 'c', usd: 5, live_session_id: null, source: 'upload' },
+    { id: 4, date_time: new Date(monthStart(1)).toISOString(), platform: 'bongacams', username: 'd', usd: 45, live_session_id: null, source: 'upload' },
+  ]
+  renderPage({ data: t })
+  const card = screen.getByTestId('rec-platform')
+  expect(card.textContent).toMatch(/Chaturbate/)
+  expect(card.textContent).toMatch(/\+150%/)       // BongaCams' +800% from a $5 base is excluded
+  expect(card.textContent).not.toMatch(/BongaCams/)
 })
 
 test('the reporting period filters the figures (Pro: 30 vs 90 days)', () => {

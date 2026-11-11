@@ -205,3 +205,40 @@ describe('plan date window', () => {
     expect(effectiveRangeDays(90, true)).toBe(90)
   })
 })
+
+describe('platform growth record ($50 minimum base, completed months)', () => {
+  const { platformGrowthRecord, PLATFORM_GROWTH_MIN_BASE } = require('../platformHistory')
+  const now = Date.parse('2026-11-11T16:00:00Z') // November is the current, incomplete month
+  const m = (id, month, platform, usd) => tip(id, `${month}-15T16:00:00Z`, platform, `f${id}`, usd)
+
+  test('largest single-platform month-over-month increase', () => {
+    const t = [m(1, '2026-08', 'bongacams', 100), m(2, '2026-09', 'bongacams', 150), // +50%
+      m(3, '2026-09', 'chaturbate', 200), m(4, '2026-10', 'chaturbate', 500)]             // +150%
+    expect(platformGrowthRecord({ tips: t, tz: TZ, nowMs: now })).toEqual({ platform: 'Chaturbate', fromMonth: '2026-09', toMonth: '2026-10', fromUsd: 200, toUsd: 500, pct: 150 })
+  })
+  test('the earlier month must have at least $50', () => {
+    expect(PLATFORM_GROWTH_MIN_BASE).toBe(50)
+    const t = [m(1, '2026-09', 'bongacams', 3), m(2, '2026-10', 'bongacams', 40), // tiny base: ignored
+      m(3, '2026-09', 'chaturbate', 50), m(4, '2026-10', 'chaturbate', 60)]        // exactly $50: counts
+    const r = platformGrowthRecord({ tips: t, tz: TZ, nowMs: now })
+    expect(r.platform).toBe('Chaturbate')
+    expect(r.pct).toBe(20)
+  })
+  test('the current incomplete month is excluded', () => {
+    const t = [m(1, '2026-10', 'chaturbate', 100), m(2, '2026-11', 'chaturbate', 900)]
+    expect(platformGrowthRecord({ tips: t, tz: TZ, nowMs: now })).toBeNull()
+  })
+  test('platforms are compared on their own months, never combined', () => {
+    // Combined Sep $100 -> Oct $180 would be +80%; per platform neither grew.
+    const t = [m(1, '2026-09', 'chaturbate', 100), m(2, '2026-10', 'chaturbate', 90), m(3, '2026-10', 'bongacams', 90)]
+    expect(platformGrowthRecord({ tips: t, tz: TZ, nowMs: now })).toBeNull()
+  })
+  test('a month with no earnings breaks the comparison (compared as $0, never skipped)', () => {
+    const t = [m(1, '2026-07', 'chaturbate', 100), m(2, '2026-09', 'chaturbate', 300)] // August empty
+    expect(platformGrowthRecord({ tips: t, tz: TZ, nowMs: now })).toBeNull()
+  })
+  test('declines only: no record', () => {
+    const t = [m(1, '2026-09', 'chaturbate', 300), m(2, '2026-10', 'chaturbate', 100)]
+    expect(platformGrowthRecord({ tips: t, tz: TZ, nowMs: now })).toBeNull()
+  })
+})

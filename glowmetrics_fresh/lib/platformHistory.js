@@ -304,3 +304,37 @@ export function audienceMilestone({ tips = [] }) {
   const progress = next ? Math.max(0, Math.min(1, (n - floor) / (next - floor))) : 1
   return { fans: n, latest, next, progress: Math.round(progress * 100) / 100, complete: !next }
 }
+
+// ---------- platform growth record (approved definition) ----------
+// The largest month-over-month earnings increase on a single platform:
+//  - completed creator-local calendar months only (the current month is excluded);
+//  - each month is compared with the calendar month directly before it, on the
+//    same platform (months with no earnings count as $0, never skipped);
+//  - the earlier month must have at least PLATFORM_GROWTH_MIN_BASE in earnings,
+//    so a tiny base cannot produce a misleading percentage;
+//  - only a positive increase is a record. Ties: larger dollar gain, then later month.
+export const PLATFORM_GROWTH_MIN_BASE = 50
+export function platformGrowthRecord({ tips = [], tz, nowMs }) {
+  const currentMonth = localParts(nowMs, tz).month
+  const byPlatform = new Map()
+  for (const t of validTips(tips)) {
+    const m = localParts(t.ms, tz).month
+    if (m >= currentMonth) continue
+    if (!byPlatform.has(t.platform)) byPlatform.set(t.platform, new Map())
+    const months = byPlatform.get(t.platform)
+    months.set(m, (months.get(m) || 0) + t.usd)
+  }
+  let best = null
+  for (const [platform, months] of byPlatform) {
+    const keys = [...months.keys()].sort()
+    const all = monthsBetween(keys[0], keys[keys.length - 1])
+    for (let i = 1; i < all.length; i++) {
+      const prev = Math.round((months.get(all[i - 1]) || 0) * 100) / 100
+      const cur = Math.round((months.get(all[i]) || 0) * 100) / 100
+      if (prev < PLATFORM_GROWTH_MIN_BASE || cur <= prev) continue
+      const cand = { platform, fromMonth: all[i - 1], toMonth: all[i], fromUsd: prev, toUsd: cur, pct: Math.round(((cur - prev) / prev) * 1000) / 10 }
+      if (!best || cand.pct > best.pct || (cand.pct === best.pct && (cand.toUsd - cand.fromUsd > best.toUsd - best.fromUsd || (cand.toUsd - cand.fromUsd === best.toUsd - best.fromUsd && cand.toMonth > best.toMonth)))) best = cand
+    }
+  }
+  return best
+}

@@ -12,7 +12,7 @@ import {
 } from '../../lib/platformIntelligenceAnalytics'
 import {
   effectiveRangeDays, rangeBounds, tipsInRange, monthlySeries, verifiedTotals, threeHourWindows,
-  audienceCounts, pctChange, allTimeDailyHigh, growthStreak, audienceMilestone,
+  audienceCounts, pctChange, allTimeDailyHigh, growthStreak, audienceMilestone, platformGrowthRecord, PLATFORM_GROWTH_MIN_BASE,
   RANGE_OPTIONS, FREE_WINDOW_DAYS, MIN_WINDOW_DATES, MIN_GROWTH_STREAK,
 } from '../../lib/platformHistory'
 import S from './PlatformsUnified.module.css'
@@ -191,6 +191,7 @@ export default function PlatformsUnified({ analytics, tips = [], shows = [], tz 
   const dailyHigh = useMemo(() => allTimeDailyHigh({ tips, tz }), [tips, tz])
   const streak = useMemo(() => growthStreak({ tips, tz, nowMs: now }), [tips, tz, now])
   const milestone = useMemo(() => audienceMilestone({ tips }), [tips])
+  const growth = useMemo(() => platformGrowthRecord({ tips, tz, nowMs: now }), [tips, tz, now])
 
   // Per-platform verified hours and $/hr over the selected range.
   const verifiedByPlatform = useMemo(() => {
@@ -372,8 +373,17 @@ export default function PlatformsUnified({ analytics, tips = [], shows = [], tz 
           </div>
           <div className={S.rec} data-testid="rec-platform">
             <small>Platform growth</small>
-            <b className={S.muted}>Definition pending</b>
-            <span className={S.muted}>Awaiting approval of how growth is measured per platform</span>
+            {growth ? (
+              <>
+                <b><span style={{ color: colorFor(growth.platform) }}>{growth.platform}</span> <span className={S.up}>+{growth.pct}%</span></b>
+                <span className={S.muted}>{monthShort(growth.fromMonth)} {money(growth.fromUsd)} → {monthShort(growth.toMonth)} {money(growth.toUsd)} · best month-over-month gain</span>
+              </>
+            ) : (
+              <>
+                <b>None yet</b>
+                <span className={S.muted}>Needs a completed month of at least ${PLATFORM_GROWTH_MIN_BASE} followed by a higher month on the same platform</span>
+              </>
+            )}
           </div>
         </div>
       </section>
