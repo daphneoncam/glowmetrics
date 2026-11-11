@@ -1,0 +1,6 @@
+with t(n) as (values ('profiles'),('tips'),('paid_sessions'),('csv_uploads'),('beta_users'),('live_sessions'),('live_tips'),('live_private_intervals'),('planned_streams'),('user_goals'),('tipper_notes'),('analytics_events'),('email_logs'),('subscriptions'))
+select 'columns' as what, md5(string_agg(table_name||'.'||column_name||':'||data_type||':'||coalesce(numeric_precision::text,'')||','||coalesce(numeric_scale::text,'')||':'||is_nullable||':'||coalesce(column_default,'')||':'||coalesce(generation_expression,''), '|' order by table_name, column_name)) as fp from information_schema.columns where table_schema='public' and table_name in (select n from t)
+union all select 'indexes', md5(string_agg(indexdef, '|' order by indexname)) from pg_indexes where schemaname='public' and tablename in (select n from t)
+union all select 'policies', md5(string_agg(tablename||'.'||policyname||':'||cmd||':'||coalesce(qual,'')||':'||coalesce(with_check,''), '|' order by tablename, policyname)) from pg_policies where schemaname='public' and tablename in (select n from t)
+union all select 'fn:'||p.proname, md5(replace(p.prosrc, E'\r', '')) from pg_proc p join pg_namespace s on s.oid=p.pronamespace where s.nspname='public' and p.proname in ('insert_tips_dedup','insert_paid_sessions_dedup','canonical_platform','handle_new_user','generate_upload_ref')
+order by 1;
