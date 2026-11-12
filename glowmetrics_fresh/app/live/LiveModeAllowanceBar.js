@@ -1,10 +1,12 @@
 'use client'
 
-// Free Live Mode allowance: 2 new streams per week, 35 ACTIVE minutes each.
-// Display only. The server ends the stream at 35 active minutes and refuses
-// a third start; this bar just mirrors the canonical session timing
-// (engine.duration.active_duration_seconds — paused time excluded) and the
-// allowance from /api/live/usage.
+// Free Live Mode allowance: 2 new streams per week, 35 ACTIVE minutes each,
+// counted from the stream's first REAL tip (test tips are never saved).
+// Display only. The server ends the stream at 35 free minutes and refuses a
+// third start; this bar just mirrors the database's Free clock
+// (engine.duration.free_active_seconds — see freeClockActiveSeconds in
+// lib/liveSession/shape.js; paused time excluded) and the allowance from
+// /api/live/usage.
 
 export const FREE_WARN_SECONDS = 25 * 60
 export const FREE_STRONG_WARN_SECONDS = 30 * 60
@@ -67,11 +69,31 @@ export default function LiveModeAllowanceBar({ engine }) {
     )
   }
 
-  const active = session.active_duration_seconds || 0
+  const paused = session.live_substate === 'paused'
+  const free = session.free_active_seconds
+  const weekLabel = `Stream ${Math.min(used, perWeek)} of ${perWeek} this week`
+
+  // Clock not started (no real tip yet) or not known yet (between polls /
+  // lookup failed): say so, never show a guessed countdown.
+  if (free === null || free === undefined) {
+    return (
+      <div data-testid="live-allowance-waiting" data-clock={free === null ? 'not_started' : 'unknown'} style={box('rgba(16,185,129,0.4)', 'rgba(16,185,129,0.08)')}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ color: '#10B981', fontWeight: 700 }}>
+            {free === null
+              ? `Your ${limit / 60} free minutes start at your first real tip.`
+              : `Free Live Mode: ${limit / 60} active minutes, counted from your first real tip.`}
+          </span>
+          <span style={{ color: '#94A3B8', fontSize: 12 }}>{weekLabel}</span>
+        </div>
+      </div>
+    )
+  }
+
+  const active = free
   const pct = Math.min(100, (active / limit) * 100)
   const level = freeAllowanceLevel(active)
   const color = level === 'strong' ? '#F87171' : level === 'warn' ? '#FBBF24' : '#10B981'
-  const paused = session.live_substate === 'paused'
   const message = level === 'strong'
     ? `${fmt(limit - active)} left. Your Free stream ends automatically at 35 active minutes — upgrade to Pro to keep streaming.`
     : level === 'warn'
@@ -83,7 +105,7 @@ export default function LiveModeAllowanceBar({ engine }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
         <span style={{ color, fontWeight: 700 }}>{message}</span>
         <span style={{ color: '#94A3B8', fontSize: 12 }}>
-          {paused ? 'Paused — time isn’t counting' : `Stream ${Math.min(used, perWeek)} of ${perWeek} this week`}
+          {paused ? 'Paused — time isn’t counting' : weekLabel}
         </span>
       </div>
       <div role="progressbar" aria-valuemin={0} aria-valuemax={limit} aria-valuenow={Math.round(active)}

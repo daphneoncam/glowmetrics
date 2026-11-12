@@ -1,0 +1,68 @@
+name: Database Tests
+
+# Runs every supabase/tests suite against a throwaway Postgres 16 container.
+# Each suite rebuilds a production-shaped replica, applies the migration it
+# rehearses, and asserts behaviour (money rules, grants, Live Mode limits,
+# Private Mode, the Free clock). No secrets and no connection to any real
+# Supabase project: each run.sh also refuses a *.supabase.co host.
+
+on:
+  push:
+    branches:
+      - claude/*
+      - main
+      - staging
+  pull_request:
+    branches:
+      - main
+      - staging
+  workflow_dispatch: {}
+
+jobs:
+  sql-suites:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: postgres
+
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - live_mode_20261103
+          - live_free_clock_20261110
+          - batch1_money_and_grants
+          - import_rpc_hardening
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Postgres client 16
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-16
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
+
+      - name: Run ${{ matrix.suite }}
+        working-directory: glowmetrics_fresh/supabase/tests/${{ matrix.suite }}
+        run: |
+          psql --version
+          bash ./run.sh

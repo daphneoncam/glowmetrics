@@ -21,13 +21,20 @@ export async function POST(req) {
 
   let body = {}
   try { body = await req.json() } catch (_) {}
-  const rate = Number(body?.ratePerMinute)
-  if (!Number.isFinite(rate) || rate < 0 || rate > 1000) {
-    return NextResponse.json({ error: 'ratePerMinute must be a number between 0 and 1000' }, { status: 400, headers: cors })
+  // "Skip" sends no rate and no username: both are saved as NULL (unknown),
+  // never as 0. A rate or username that IS sent must still be valid.
+  const rawRate = body?.ratePerMinute
+  const rateSkipped = rawRate === null || rawRate === undefined || rawRate === ''
+  const rate = rateSkipped ? null : Number(rawRate)
+  if (!rateSkipped && (typeof rawRate === 'boolean' || !Number.isFinite(rate) || rate < 0 || rate > 1000)) {
+    return NextResponse.json({ error: 'Enter a private rate between $0 and $1,000 per minute.', code: 'INVALID_RATE' }, { status: 400, headers: cors })
   }
-  const username = typeof body?.username === 'string' ? body.username.trim() : ''
-  if (!username || username.length > 80) {
-    return NextResponse.json({ error: 'Enter the fan’s username to start a private show.', code: 'USERNAME_REQUIRED' }, { status: 400, headers: cors })
+  if (body?.username !== undefined && body?.username !== null && typeof body.username !== 'string') {
+    return NextResponse.json({ error: 'Unrecognized value.' }, { status: 400, headers: cors })
+  }
+  const username = typeof body?.username === 'string' && body.username.trim() ? body.username.trim() : null
+  if (username && username.length > 80) {
+    return NextResponse.json({ error: 'Fan usernames can be up to 80 characters.', code: 'USERNAME_REQUIRED' }, { status: 400, headers: cors })
   }
   const platform = typeof body?.platform === 'string' && body.platform.trim() ? body.platform.trim() : null
 

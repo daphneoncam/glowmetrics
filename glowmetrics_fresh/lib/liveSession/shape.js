@@ -26,7 +26,26 @@ export function shapeLiveSession(row) {
     ...row,
     effective_paused_seconds: Math.round(effectivePausedSeconds),
     active_duration_seconds: Math.round(activeDurationSeconds),
+    free_active_seconds: freeClockActiveSeconds(row, now),
   }
+}
+
+// Free Live Mode clock: counts only from the first REAL tip of the stream
+// (test tips are never saved). The database decides the clock start and the
+// paused time after it (get_live_free_clock / _live_free_clock in
+// 20261110_free_live_clock_from_first_real_tip.sql); this only ticks it
+// between polls with the same formula:
+//   free active = (paused_at ?? now) - clock_started_at - paused_seconds
+// row.free_clock: undefined = not known (not fetched / lookup failed),
+// { started_at: null } = no real tip yet, so the clock has not started.
+// Returns undefined, null, or seconds — never a guessed number.
+export function freeClockActiveSeconds(row, now = Date.now()) {
+  const clock = row?.free_clock
+  if (!clock) return undefined
+  if (!clock.started_at) return null
+  const ref = row.paused_at ? new Date(row.paused_at).getTime() : now
+  const seconds = (ref - new Date(clock.started_at).getTime()) / 1000 - (Number(clock.paused_seconds) || 0)
+  return Math.round(Math.max(0, seconds))
 }
 
 // Known entitlement / Private Mode refusals raised by the Live RPCs. Each is

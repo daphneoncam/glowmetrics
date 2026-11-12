@@ -123,6 +123,54 @@ describe('35 active minutes: every polled route asks the database first', () => 
     expect(body.limitEnded).toMatchObject({ id: LIVE.id })
   })
 
+  test('SE-02: signed out session poll -> 401, no clock lookup', async () => {
+    state.user = null
+    const { GET } = await import('../route.js')
+    const res = await GET(req())
+    expect(res.status).toBe(401)
+    expect(rpcNames()).not.toContain('get_live_free_clock')
+  })
+
+  test('session poll attaches the Free clock from the database (first real tip)', async () => {
+    state.single.live_sessions = { data: LIVE, error: null }
+    const tipAt = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    state.rpc.get_live_free_clock = { data: { session_id: LIVE.id, clock_started_at: tipAt, paused_seconds: 0 }, error: null }
+    const { GET } = await import('../route.js')
+    const body = await (await GET(req())).json()
+    expect(rpcNames()).toEqual(['sweep_stale_live_session', 'enforce_live_active_limit', 'get_live_free_clock'])
+    expect(body.session.free_clock).toEqual({ started_at: tipAt, paused_seconds: 0 })
+    expect(Math.abs(body.session.free_active_seconds - 300)).toBeLessThanOrEqual(1)
+    expect(Math.abs(body.session.active_duration_seconds - 600)).toBeLessThanOrEqual(1)
+  })
+
+  test('no real tip yet -> free clock not started (null), stream timing unchanged', async () => {
+    state.single.live_sessions = { data: LIVE, error: null }
+    state.rpc.get_live_free_clock = { data: { session_id: LIVE.id, clock_started_at: null, paused_seconds: null }, error: null }
+    const { GET } = await import('../route.js')
+    const body = await (await GET(req())).json()
+    expect(body.session.free_active_seconds).toBeNull()
+  })
+
+  test('clock lookup failure -> no clock sent (no guessed countdown), poll still succeeds', async () => {
+    state.single.live_sessions = { data: LIVE, error: null }
+    state.rpc.get_live_free_clock = { data: null, error: { message: 'boom' } }
+    const { GET } = await import('../route.js')
+    const res = await GET(req())
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.session.id).toBe(LIVE.id)
+    expect(body.session.free_clock).toBeUndefined()
+    expect(body.session.free_active_seconds).toBeUndefined()
+  })
+
+  test('a clock for a different session is ignored', async () => {
+    state.single.live_sessions = { data: LIVE, error: null }
+    state.rpc.get_live_free_clock = { data: { session_id: 'other', clock_started_at: new Date().toISOString(), paused_seconds: 0 }, error: null }
+    const { GET } = await import('../route.js')
+    const body = await (await GET(req())).json()
+    expect(body.session.free_clock).toBeUndefined()
+  })
+
   test('resume after the limit returns the ended stream, does not resume', async () => {
     state.rpc.enforce_live_active_limit = { data: LIMIT_ENDED, error: null }
     const { POST } = await import('../resume/route.js')
@@ -134,11 +182,56 @@ describe('35 active minutes: every polled route asks the database first', () => 
 })
 
 describe('POST /api/live/session/private/start', () => {
-  test('requires a fan username; nothing is called without one', async () => {
+  test('SE-01: signed out -> 401, nothing called', async () => {
+    state.user = null
     const { POST } = await import('../private/start/route.js')
-    const res = await POST(req({ ratePerMinute: 2, username: '   ' }))
+    const res = await POST(req({ ratePerMinute: 2, username: 'fan' }))
+    expect(res.status).toBe(401)
+    expect(state.rpcCalls).toEqual([])
+  })
+
+  test('SE-06: a non-text username is refused, nothing called', async () => {
+    const { POST } = await import('../private/start/route.js')
+    const res = await POST(req({ ratePerMinute: 2, username: 12345 }))
     expect(res.status).toBe(400)
-    expect((await res.json()).code).toBe('USERNAME_REQUIRED')
+    expect(state.rpcCalls).toEqual([])
+  })
+
+  test('SE-07: an unexpected database error returns fixed copy, never the raw text', async () => {
+    state.rpc.start_private_interval = { data: null, error: { code: 'XX000', message: 'relation public.live_private_intervals internal detail' } }
+    const { POST } = await import('../private/start/route.js')
+    const res = await POST(req({ ratePerMinute: 2, username: 'fan' }))
+    const body = await res.json()
+    expect(res.status).toBe(500)
+    expect(JSON.stringify(body)).not.toMatch(/relation|live_private_intervals|internal/)
+  })
+
+  test('Skip: no rate and no username are sent to the database as NULL (never 0)', async () => {
+    state.rpc.start_private_interval = { data: { id: 'p1', platform: 'BongaCams', username: null, rate_per_minute: null }, error: null }
+    const { POST } = await import('../private/start/route.js')
+    const res = await POST(req({ ratePerMinute: null, username: null }))
+    expect(res.status).toBe(200)
+    expect(state.rpcCalls[1]).toEqual({ name: 'start_private_interval', params: { p_rate_per_minute: null, p_platform: null, p_username: null } })
+  })
+
+  test('blank username is NULL, not an empty string', async () => {
+    const { POST } = await import('../private/start/route.js')
+    await POST(req({ ratePerMinute: 2, username: '   ' }))
+    expect(state.rpcCalls[1].params).toEqual({ p_rate_per_minute: 2, p_platform: null, p_username: null })
+  })
+
+  test.each([[-1], [1001], ['abc'], [true]])('a given rate must be valid (%p) -> 400, nothing called', async (bad) => {
+    const { POST } = await import('../private/start/route.js')
+    const res = await POST(req({ ratePerMinute: bad, username: 'fan' }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).code).toBe('INVALID_RATE')
+    expect(state.rpcCalls).toEqual([])
+  })
+
+  test('username over 80 characters -> 400, nothing called', async () => {
+    const { POST } = await import('../private/start/route.js')
+    const res = await POST(req({ ratePerMinute: 2, username: 'x'.repeat(81) }))
+    expect(res.status).toBe(400)
     expect(state.rpcCalls).toEqual([])
   })
 
