@@ -1,7 +1,7 @@
 // CamCash background service worker
 
 const SUPABASE_URL  = 'https://hlsdlaibnayzbfflxclj.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhsc2RsYWlibmF5emJmZmx4Y2xqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MjQwODUsImV4cCI6MjA4OTIwMDA4NX0.5FwPe35UL-o46FvBJX526La5o7jcbFaP1KVoLtI4U_M';
+const SUPABASE_ANON = 'sb_publishable_Acd117Nwly1W3AZW-hc2AQ_2jq0-rUw';
 const API_BASE       = 'https://www.camcashgrl.com';
 
 // Token→USD rates for the popup's local display only — the server (see
@@ -64,13 +64,17 @@ async function restore() {
 }
 
 // ─── Supabase helpers (direct REST — no server hop, no CORS issues) ───────────
+// SUPABASE_ANON is a publishable (sb_publishable_…) key, not a JWT — Supabase
+// rejects it in the Authorization header, so only send that header when we
+// have a user's access_token. Logged-out requests authenticate via apikey alone.
 function sbHeaders(token) {
-  return {
+  const headers = {
     'Content-Type':  'application/json',
     'apikey':        SUPABASE_ANON,
-    'Authorization': `Bearer ${token || SUPABASE_ANON}`,
     'Prefer':        'return=minimal',
   };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
 }
 
 // ─── Usage/install tracking ─────────────────────────────────────────────────

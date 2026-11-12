@@ -5,7 +5,7 @@
 // project background.js/the API talk to, every authenticated action fails
 // with "unauthorized" even though login itself appears to succeed.
 const SUPABASE_URL = 'https://hlsdlaibnayzbfflxclj.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhsc2RsYWlibmF5emJmZmx4Y2xqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MjQwODUsImV4cCI6MjA4OTIwMDA4NX0.5FwPe35UL-o46FvBJX526La5o7jcbFaP1KVoLtI4U_M';
+const SUPABASE_ANON_KEY = 'sb_publishable_Acd117Nwly1W3AZW-hc2AQ_2jq0-rUw';
 
 // DOM elements
 const authSection = document.getElementById('auth-section');
