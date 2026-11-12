@@ -11,7 +11,7 @@
 // → Session Performance cards in Row 3 instead of platform comparison.
 // Every number comes from lib/sessions/normalize.js (one formula each);
 // visuals reuse CamCash primitives (Command Center card / hero gradient,
-// Platforms PlatformCell, Stream Planner Pill / PlatChip, platform colors).
+// Platforms PlatformCell, Stream Planner Pill, platform colors).
 
 import React, { useEffect, useMemo, useRef, useState } from "react"
 import { platformDisplayName, platformColor } from "../../lib/constants"
@@ -24,7 +24,7 @@ import SessionsPulse, { pickPulse } from "./SessionsPulse"
 import { fmtUsd, fmtDuration } from "./LatestShows"
 import { card, HERO_GRADIENT } from "./CommandCenter"
 import { PlatformCell } from "./PlatformsIntelligence"
-import { Pill, PlatChip } from "./StreamPlanner"
+import { Pill } from "./StreamPlanner"
 import { PrimaryPlatformControl } from "./PrimaryPlatformPrompt"
 
 const C = {
@@ -375,32 +375,59 @@ function VsTypical({ vs, testId, long = false, e }) {
 }
 
 // ── Row 4 left: sessions list ────────────────────────────────────────────────
-function SessionRow({ e, tz, selected, onSelect, vs }) {
+// Row-only presentation (Session Details keeps sessionTitle/lengthText/whenText).
+// A row shows only: platform, session type, the verified vs-typical marker,
+// a check when the session started inside a saved Stream Planner window, and
+// earnings. Every value is an existing engine output.
+// Row marker: only the arrow is visible; the verified figure stays in the text for
+// screen readers and the hover title (same sessionVsTypical result as Session Details).
+const srOnly = { position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }
+function RowVsArrow({ vs, testId }) {
+  const color = vs.outcome === "above" ? C.green : vs.outcome === "below" ? "#F87171" : C.text
+  const arrow = vs.outcome === "above" ? "▲" : vs.outcome === "below" ? "▼" : null // on par: no visible mark
+  const pct = vs.outcome === "par" ? "On par" : `${vs.deltaPct > 0 ? "+" : ""}${vs.deltaPct}%`
+  return (
+    <span data-testid={testId} data-outcome={vs.outcome} title={`${pct} vs typical (median ${fmtUsd(vs.medianUSD)} of ${vs.sessions} comparable sessions)`} style={{ position: "relative", color, fontSize: 12, lineHeight: 1 }}>
+      {arrow && <span aria-hidden="true">{arrow}</span>}<span style={srOnly}> {pct}</span><span style={srOnly}>vs typical</span>
+    </span>
+  )
+}
+function SessionRow({ e, selected, onSelect, vs, plan }) {
   const t = TYPE[e.type]
   const status = e.running ? { label: "LIVE NOW", color: C.green } : e.isNew ? { label: "JUST ENDED", color: C.pink } : t
+  const platform = e.platforms[0]
+  const inWindow = !!(plan && plan.insideWindow) // matchPlannedStream: started inside the planned window
   return (
     <button data-testid={`history-${e.id}`} onClick={onSelect} aria-pressed={selected} className="sx-row" style={{
-      ...inset, width: "100%", textAlign: "left", cursor: "pointer", padding: "10px 14px", display: "grid",
-      gridTemplateColumns: "32px minmax(0,1fr) 72px 50px 44px 10px", gap: 8, alignItems: "center", color: C.white,
+      ...inset, width: "100%", textAlign: "left", cursor: "pointer", padding: "10px 14px", color: C.white,
       ...(selected ? { border: `1px solid ${C.pink}`, boxShadow: `0 0 0 1px ${C.indigo}55, 0 0 22px ${C.pink}40`, background: "rgba(30,18,52,0.75)" } : {}),
     }}>
-      <span aria-hidden="true" style={{ width: 36, height: 36, borderRadius: 9, display: "grid", placeItems: "center", background: "rgba(255,255,255,0.05)", color: e.type === "imported" ? C.text : C.cyan, fontSize: 14 }}>{e.type === "imported" ? "▤" : e.type === "private" ? "🔒" : "▶"}</span>
-      <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap", overflow: "hidden" }}>
-          <span style={{ fontWeight: 800, fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis" }}>{sessionTitle(e, tz)}</span>
+      <span aria-hidden="true" className="sx-row-icon" style={{ width: 32, height: 32, borderRadius: 9, display: "grid", placeItems: "center", background: "rgba(255,255,255,0.05)", color: e.type === "imported" ? C.text : C.cyan, fontSize: 13 }}>{e.type === "imported" ? "▤" : e.type === "private" ? "🔒" : "▶"}</span>
+      <span className="sx-row-id">
+        <span style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "2px 7px" }}>
+          {platform && <span data-testid={`platform-badge-${platform}`} style={{ fontWeight: 800, fontSize: 14, color: C.white, overflowWrap: "anywhere" }}>{pName(platform)}</span>}
+          {e.platforms.length > 1 && <span title={e.platforms.slice(1).map(pName).join(", ")} style={{ fontSize: 11.5, color: C.text }}>+{e.platforms.length - 1}</span>}
+          {inWindow && <span data-testid="row-in-window" role="img" aria-label="Inside your planned stream window" title="Started inside your planned stream window" style={{ color: C.green, fontWeight: 900, fontSize: 14 }}>✓</span>}
           {e.isNew && <span data-testid="row-new-badge" style={{ display: "none" }}>NEW</span>}
         </span>
-        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: C.text, whiteSpace: "nowrap", overflow: "hidden" }}>
+        <span style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px 8px", marginTop: 5 }}>
           <Badge text={status.label} color={status.color} testId={`type-badge-${e.type}`} />
-          {e.platforms.slice(0, 1).map((p, i) => <span key={p} data-testid={`platform-badge-${p}`}><PlatChip name={pName(p)} i={i} /></span>)}
-          {e.platforms.length > 1 && <span title={e.platforms.slice(1).map(pName).join(", ")} style={{ color: C.text }}>+{e.platforms.length - 1}</span>}
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>· {whenText(e.startTime, tz)}</span>
+          {/* secondary count (existing values). Private / group / spy billing records are
+              payments the creator received, not tips, so they read "Payment(s)". */}
+          <span data-testid="row-count" style={{ fontSize: 11, color: C.text, whiteSpace: "nowrap" }}>
+            <span style={{ color: C.white, fontWeight: 700 }}>{e.type === "private" ? e.chargeCount : e.tipCount}</span>
+            <span style={{ marginLeft: 3 }}>{e.type === "private" ? (e.chargeCount === 1 ? "Payment" : "Payments") : (e.tipCount === 1 ? "Tip" : "Tips")}</span>
+          </span>
         </span>
       </span>
-      <span><div style={{ fontWeight: 900, fontSize: 14 }}>{fmtUsd(e.totalUSD)}</div>{vs ? <VsTypical vs={vs} testId={`row-vs-${e.id}`} /> : <div style={{ fontSize: 11, color: C.text }}>Total Earned</div>}</span>
-      <span><div style={{ fontWeight: 800, fontSize: 13 }}>{lengthText(e)}</div><div style={{ fontSize: 11, color: C.text }}>{e.type === "live" ? "Duration" : e.type === "private" ? "Charge span" : "Est. span"}</div></span>
-      <span><div style={{ fontWeight: 800, fontSize: 13 }}>{e.type === "private" ? e.chargeCount : e.tipCount}</div><div style={{ fontSize: 11, color: C.text }}>{e.type === "private" ? (e.chargeCount === 1 ? "Charge" : "Charges") : (e.tipCount === 1 ? "Tip" : "Tips")}</div></span>
-      <span aria-hidden="true" style={{ color: C.text, fontSize: 16 }}>›</span>
+      <span className="sx-row-money">
+        <span style={{ display: "flex", alignItems: "center", justifyContent: "inherit", gap: 6, fontWeight: 900, fontSize: 14.5, whiteSpace: "nowrap" }}>
+          {fmtUsd(e.totalUSD)}
+          {vs && <RowVsArrow vs={vs} testId={`row-vs-${e.id}`} />}
+        </span>
+        <span style={{ display: "block", fontSize: 11, color: C.text }}>Total Earned</span>
+      </span>
+      <span aria-hidden="true" className="sx-row-chev" style={{ color: C.text, fontSize: 16 }}>›</span>
     </button>
   )
 }
@@ -464,7 +491,7 @@ function BucketsView({ e, tips, tz }) {
         <table data-testid="buckets-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, color: C.text }}>
           <thead><tr style={{ textAlign: "left", color: C.muted }}>
             <th style={{ padding: "4px 6px" }}>Time</th><th style={{ padding: "4px 6px", textAlign: "right" }}>Public</th><th style={{ padding: "4px 6px", textAlign: "right" }}>Private</th>
-            <th style={{ padding: "4px 6px", textAlign: "right" }}>{e.type === "private" ? "Charges" : "Tips"}</th><th style={{ padding: "4px 6px", textAlign: "right" }}>Fans</th><th style={{ padding: "4px 6px" }}>Top fan</th>
+            <th style={{ padding: "4px 6px", textAlign: "right" }}>{e.type === "private" ? "Payments" : "Tips"}</th><th style={{ padding: "4px 6px", textAlign: "right" }}>Fans</th><th style={{ padding: "4px 6px" }}>Top fan</th>
           </tr></thead>
           <tbody>
             {d.buckets.map((b, i) => (
@@ -503,7 +530,7 @@ function FanDriversView({ e, tips, paidSessions, isPro, primaryPlatform }) {
               <PlatformCell platform={pName(f.platform)} />
               <Badge text={f.returning ? "RETURNING" : newLabel(f.platform).toUpperCase()} color={f.returning ? C.green : C.cyan} testId={`fan-status-${f.returning ? "returning" : "new"}`} />
             </div>
-            <div style={{ fontSize: 12, color: C.text, marginTop: 3 }}>{f.count} {e.type === "private" ? (f.count === 1 ? "charge" : "charges") : (f.count === 1 ? "tip" : "tips")}</div>
+            <div style={{ fontSize: 12, color: C.text, marginTop: 3 }}>{f.count} {e.type === "private" ? (f.count === 1 ? "payment" : "payments") : (f.count === 1 ? "tip" : "tips")}</div>
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontWeight: 900, color: C.white }}>{fmtUsd(f.usd)}</div>
@@ -612,11 +639,11 @@ function Details({ e, tips, paidSessions = [], tz, today, signal, isPro = true, 
       <div className="sx-dgrid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: 8 }}>
         <Cell value={fmtUsd(e.publicUSD)} label="Public" testId="details-public" />
         <Cell value={fmtUsd(e.privateUSD)} label="Private" testId="details-private" accent={C.pink} />
-        <Cell value={e.type === "private" ? `${e.chargeCount} ${e.chargeCount === 1 ? "charge" : "charges"}` : e.tipCount} label={e.type === "private" ? "Billing" : "Tips"} testId="details-tips" />
+        <Cell value={e.type === "private" ? `${e.chargeCount} ${e.chargeCount === 1 ? "payment" : "payments"}` : e.tipCount} label={e.type === "private" ? "Received" : "Tips"} testId="details-tips" />
         <Cell value={e.uniqueTippers} label="Unique Tippers" testId="details-unique" />
         <Cell value={e.type === "live" ? fmtUsd(e.show?.largestTipUsd) : e.type === "private" ? "—" : fmtUsd(Math.max(0, ...(e.session?.tips || []).map((x) => Number(x.usd) || 0)))} label="Largest Tip" testId="details-largest" />
         <Cell value={e.topTipper ? e.topTipper.username : e.fan || "—"} label={e.type === "private" ? "Fan" : "Top Tipper"} testId="details-top" />
-        <Cell value={lengthText(e)} label={e.type === "private" ? "Charge span" : e.type === "live" ? "Duration" : "Est. span (first→last tip)"} testId="details-duration" />
+        <Cell value={lengthText(e)} label={e.type === "private" ? "Payment span" : e.type === "live" ? "Duration" : "Est. span (first→last tip)"} testId="details-duration" />
         <Cell value={e.type === "live" ? fmtDuration(e.show?.privateSeconds || 0) : "—"} label="Private Time" testId="details-private-time" />
       </div>
       <div style={{ ...inset, padding: "12px 14px" }}>
@@ -709,10 +736,22 @@ export default function SessionsOverview({ tips, shows, paidSessions, tz, showsL
         @keyframes sxFlash { 0% { filter: drop-shadow(0 0 26px rgba(34,211,238,.9)); } 100% { filter: drop-shadow(0 0 18px rgba(124,92,255,.45)); } }
         .sx-root .sx-row { transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease; }
         .sx-root .sx-row:hover { transform: translateY(-1px); border-color: rgba(34,211,238,0.35); }
+        /* Recent Sessions rows: identity | earnings on one line; on a very narrow
+           card the earnings drop under the identity instead of squeezing it. */
+        .sx-root .sx-list { container-type: inline-size; container-name: sxlist; min-width: 0; }
+        .sx-root .sx-row { display: grid; grid-template-columns: 32px minmax(0,1fr) auto 12px; grid-template-areas: "icon id money chev"; column-gap: 10px; row-gap: 6px; align-items: center; }
+        .sx-root .sx-row-icon { grid-area: icon; }
+        .sx-root .sx-row-id { grid-area: id; min-width: 0; }
+        .sx-root .sx-row-money { grid-area: money; text-align: right; }
+        .sx-root .sx-row-chev { grid-area: chev; }
+        @container sxlist (max-width: 299px) {
+          .sx-root .sx-row { grid-template-columns: 32px minmax(0,1fr) 12px; grid-template-areas: "icon id chev" "icon money chev"; }
+          .sx-root .sx-row-money { text-align: left; }
+        }
         @media (prefers-reduced-motion: reduce) { .sx-root .sx-pulse, .sx-root .sx-flash { animation: none; } .sx-root .sx-row { transition: none; } .sx-root .sx-row:hover { transform: none; } }
         @media (max-width: 1150px) { .sx-root .sx-hero { grid-template-columns: 1fr !important; } }
         @media (max-width: 1000px) { .sx-root .sx-plat, .sx-root .sx-md { grid-template-columns: 1fr !important; } }
-        @media (max-width: 640px) { .sx-root .sx-cells, .sx-root .sx-dgrid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; } .sx-root .sx-row { grid-template-columns: 36px 1fr auto !important; } .sx-root .sx-row > span:nth-child(n+4) { display: none; } }
+        @media (max-width: 640px) { .sx-root .sx-cells, .sx-root .sx-dgrid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; } }
       `}</style>
 
       {/* Row 1 */}
@@ -767,7 +806,7 @@ export default function SessionsOverview({ tips, shows, paidSessions, tz, showsL
 
       {/* Row 4 */}
       <div className="sx-md" style={{ display: "grid", gridTemplateColumns: "45fr 55fr", gap: 16, alignItems: "stretch" }}>
-        <div data-testid="session-history" style={card({ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10, background: "rgba(12,15,28,0.78)", boxShadow: "none" })}>
+        <div data-testid="session-history" className="sx-list" style={card({ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10, background: "rgba(12,15,28,0.78)", boxShadow: "none" })}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
             <div>
               <div style={{ fontSize: 19, fontWeight: 900, color: C.white }}>Recent Sessions</div>
@@ -781,7 +820,7 @@ export default function SessionsOverview({ tips, shows, paidSessions, tz, showsL
           {showsLoading && !history.length && <div style={{ color: C.text, fontSize: 12 }}>Loading…</div>}
           {!showsLoading && !history.length && !runningEntry && <div data-testid="history-empty" style={{ color: C.text, fontSize: 13 }}>No sessions yet. Start a Live Mode show or import your tip history.</div>}
           {(history.length > 0 || runningEntry) && !rows.length && <div data-testid="history-filter-empty" style={{ color: C.text, fontSize: 13 }}>No sessions of this type yet. Short tip groups (under 30 min or a single tip) are not listed.</div>}
-          {rows.map((e) => <SessionRow key={e.id} e={e} tz={tz} selected={selected?.id === e.id} onSelect={() => setSelectedId(e.id)} vs={vsById.get(e.id)} />)}
+          {rows.map((e) => <SessionRow key={e.id} e={e} selected={selected?.id === e.id} onSelect={() => setSelectedId(e.id)} vs={vsById.get(e.id)} plan={plannedStreams.length ? matchPlannedStream(e, plannedStreams) : null} />)}
         </div>
         <div data-testid="session-details" style={card({ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 12, background: "rgba(12,15,28,0.78)", boxShadow: "none" })}>
           <div style={{ fontSize: 19, fontWeight: 900, color: C.white }}>Session Details</div>
