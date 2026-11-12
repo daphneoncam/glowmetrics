@@ -2379,6 +2379,8 @@ const stopImportMessageRotation = () => {
         dateTo: result.dateTo,
       })
       setImportStage('success')
+      setShowImportSparkle(true)
+      setTimeout(() => setShowImportSparkle(false), 2400)
 
       setUploadCount(c => c + 1)
       if (typeof window !== 'undefined') localStorage.setItem('camcash_onboarded', '1')
@@ -4300,21 +4302,22 @@ const stopImportMessageRotation = () => {
               <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 12, background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.25)", marginBottom: 16 }}>
                 <span style={{ fontSize: 18 }}>🔒</span>
                 <div style={{ flex: 1, fontSize: 12.5, color: C.text, lineHeight: 1.5 }}>
-                  You're on the free plan (1 platform). Upgrade to Pro to add BongaCams, MyFreeCams, and more.
+                  You're on the free plan (1 platform). Upgrade to Pro to add BongaCams and MyFreeCams.
                 </div>
                 <Button onClick={() => openUpgradeModal('multi_platform')} style={{ flexShrink: 0, padding: "8px 14px", fontSize: 12, whiteSpace: "nowrap" }}>Upgrade →</Button>
               </div>
             )}
-            <div style={{ ...glassCard, borderRadius: 14, padding: 32, marginBottom: 16, position: "relative", overflow: "hidden" }}>
+            <div style={{ borderRadius: 15, padding: 1, background: "linear-gradient(135deg, rgba(34,211,238,0.95), rgba(124,92,255,0.45), rgba(236,72,153,0.95))", boxShadow: "-20px 0 60px rgba(34,211,238,0.16), 20px 0 60px rgba(236,72,153,0.18), 0 24px 70px rgba(0,0,0,0.55)", marginBottom: 16 }}>
+            <div style={{ borderRadius: 14, padding: 32, position: "relative", overflow: "hidden", background: `radial-gradient(circle at 0% 10%, rgba(34,211,238,0.10), transparent 40%), radial-gradient(circle at 100% 30%, rgba(236,72,153,0.10), transparent 42%), ${glassCard.background}`, border: glassCard.border, backdropFilter: glassCard.backdropFilter }}>
               {!['success', 'locked_preview'].includes(importStage) && (
                 <div style={{ marginBottom: 20 }}>
                   <label style={{ fontSize: 12, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, display: "block" }}>Platform (optional — helps if auto-detect fails)</label>
                   <select value={uploadPlatform} onChange={e => setUploadPlatform(e.target.value)} disabled={uploading}
                     style={{ width: "100%", padding: "10px 14px", borderRadius: 9, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: C.white, fontSize: 14, outline: "none", opacity: uploading ? 0.6 : 1 }}>
-                    <option value="">Auto-detect (recommended)</option>
-                    {["Chaturbate", "BongaCams", "MyFreeCams", "Stripchat", "CamSoda"].map(p => {
+                    <option value="" style={{ background: C.card, color: C.white }}>Auto-detect (recommended)</option>
+                    {["Chaturbate", "BongaCams", "MyFreeCams"].map(p => {
                       const locked = freePlatformLimitReached && !allPlatforms.includes(p)
-                      return <option key={p} value={p} disabled={locked}>{locked ? `🔒 ${p} — requires Pro` : p}</option>
+                      return <option key={p} value={p} disabled={locked} style={{ background: C.card, color: locked ? C.muted : C.white }}>{locked ? `🔒 ${p} — requires Pro` : p}</option>
                     })}
                   </select>
                 </div>
@@ -4434,6 +4437,7 @@ const stopImportMessageRotation = () => {
                   </div>
                 </div>
               )}
+              </div>
             </div>
 
             {/* Plan explainer + subscribe CTA */}
