@@ -1382,6 +1382,133 @@ export function generateNextMoves(tips, sessions, whales, predictions, bestHour,
   return moves.sort((a, b) => a.priority - b.priority).slice(0, 5)
 }
 
+// ===============================
+// BEST TIME WINDOWS — the documented best-time formula
+// Single implementation used by the dashboard hero (via aggregateRows) and the
+// Stream Planner. Formula reference: Best Time Score = USD earned in a bucket
+// / streamed hours in that bucket, from valid sessions only.
+//
+//   bucket       = platform x creator-local weekday x creator-local hour
+//   streamed min = minutes of VALID sessions (isValidSession: >= 30 min AND
+//                  >= 2 tips, known duration) overlapping the bucket — this
+//                  includes zero-tip minutes inside a session
+//   USD          = tips inside those valid sessions that fall in the bucket
+//   rate         = USD / (streamed min / 60)
+//   eligible     = streamed on >= BEST_TIME_MIN_LOCAL_DATES distinct
+//                  creator-local dates ("a pattern across at least three
+//                  separate days")
+//   confidence   = calculateConfidence(validSessionCount, streamedHours) for
+//                  the bucket; "Very Low" means "Not enough data yet"
+//
+// Duration basis: imported tip data has no real stream start/end, so a
+// session's time is the span between its first and last tip. It is always
+// reported as an ESTIMATE (durationBasis 'tip_span_estimate'); time streamed
+// before the first or after the last tip is not observable and not counted.
+// ===============================
+export const BEST_TIME_MIN_LOCAL_DATES = 3
+const LONG_DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+
+// Creator-local weekday/hour/minute/second/date for one instant (cached formatter).
+function localClockParts(date, tz) {
+  const fmt = localTimeFormatter('clock', tz, 'en-US', {
+    weekday: 'long', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+  })
+  const p = {}
+  for (const x of fmt.formatToParts(date)) p[x.type] = x.value
+  return {
+    dayIndex: LONG_DAY_NAMES.indexOf(p.weekday),
+    hour: parseInt(p.hour, 10) % 24,
+    minute: parseInt(p.minute, 10),
+    second: parseInt(p.second, 10),
+    dateKey: `${p.year}-${p.month}-${p.day}`,
+  }
+}
+
+export function calculateBestTimeWindows(tips, tz = 'UTC', { sessions = null } = {}) {
+  const all = sessions || detectSessions(tips || [])
+  const valid = all.filter(s => isValidSession(s) && !s.durationUnknown)
+  const cells = {}
+  const cellFor = (platform, dayIndex, hour) => {
+    const k = `${platform}|${dayIndex}|${hour}`
+    if (!cells[k]) cells[k] = { platform, dayIndex, day: LONG_DAY_NAMES[dayIndex], hour, usd: 0, minutes: 0, sessions: new Set(), dates: new Set() }
+    return cells[k]
+  }
+  let overallMinutes = 0
+  valid.forEach((s, i) => {
+    const platform = platformKey(s.platform)
+    const startMs = new Date(s.startTime).getTime()
+    const endMs = new Date(s.endTime).getTime()
+    overallMinutes += (endMs - startMs) / 60000
+    // Walk the session in creator-local hour segments (boundaries fall at
+    // :30 UTC in +5:30 zones etc., so they are computed from local minutes).
+    let t = startMs
+    while (t < endMs) {
+      const lp = localClockParts(new Date(t), tz)
+      const toBoundary = ((60 - lp.minute) * 60 - lp.second) * 1000 - (t % 1000)
+      const segEnd = Math.min(endMs, t + Math.max(toBoundary, 1000))
+      const c = cellFor(platform, lp.dayIndex, lp.hour)
+      c.minutes += (segEnd - t) / 60000
+      c.sessions.add(i); c.dates.add(lp.dateKey)
+      t = segEnd
+    }
+    // USD is allocated by each tip's own timestamp (NOT pro-rated across the
+    // session), so a tip belongs to the hour it was received in. A tip stamped
+    // exactly at the session's end has no streamed minutes after it, so it is
+    // allocated to the last streamed instant (end - 1 ms): otherwise it would
+    // open a zero-minute cell and add a phantom session and date to it.
+    for (const tip of s.tips || []) {
+      const tipMs = Math.min(new Date(tip.dateRaw || tip.date_time || tip.timestamp).getTime(), endMs - 1)
+      const lp = localClockParts(new Date(tipMs), tz)
+      const c = cellFor(platform, lp.dayIndex, lp.hour)
+      c.usd += tip.usd || 0
+      c.sessions.add(i); c.dates.add(lp.dateKey)
+    }
+  })
+  const finish = (c) => {
+    const streamedHours = c.minutes / 60
+    const validSessionCount = c.sessions.size
+    const localDates = c.dates.size
+    const out = {
+      platform: c.platform, day: c.day, dayIndex: c.dayIndex, hour: c.hour,
+      totalUSD: parseFloat(c.usd.toFixed(2)),
+      streamedMinutes: parseFloat(c.minutes.toFixed(1)),
+      streamedHours: parseFloat(streamedHours.toFixed(3)),
+      usdPerStreamedHour: c.minutes > 0 ? parseFloat((c.usd / streamedHours).toFixed(2)) : null,
+      validSessionCount, localDates,
+      eligible: c.minutes > 0 && localDates >= BEST_TIME_MIN_LOCAL_DATES,
+      confidence: calculateConfidence(validSessionCount, streamedHours),
+      durationBasis: 'tip_span_estimate',
+    }
+    // A window is recommended only when it is a pattern (>= 3 separate local
+    // dates) AND its own confidence is above "Very Low" ("Not enough data yet").
+    out.recommended = out.eligible && out.usdPerStreamedHour != null && out.confidence.level !== 'Very Low'
+    return out
+  }
+  const byRate = (a, b) => (b.usdPerStreamedHour ?? -1) - (a.usdPerStreamedHour ?? -1)
+  const platformCells = Object.values(cells).map(finish).sort(byRate)
+
+  // Per weekday: every recommended platform cell, best rate first. Callers
+  // pick from this list (e.g. the best one that has not ended yet today);
+  // bestByDay is its first entry.
+  const recommendedByDay = {}, bestByDay = {}
+  LONG_DAY_NAMES.forEach((d, i) => {
+    recommendedByDay[d] = platformCells.filter(c => c.dayIndex === i && c.recommended)
+    bestByDay[d] = recommendedByDay[d][0] || null
+  })
+
+  return {
+    durationBasis: 'tip_span_estimate',
+    minLocalDates: BEST_TIME_MIN_LOCAL_DATES,
+    overall: {
+      validSessionCount: valid.length,
+      streamedHours: parseFloat((overallMinutes / 60).toFixed(2)),
+      confidence: calculateConfidence(valid.length, overallMinutes / 60),
+    },
+    platformCells, recommendedByDay, bestByDay,
+  }
+}
+
 export function aggregateRows(tips, tz = null) {
   let userTz = tz
   if (!userTz) {
@@ -1399,7 +1526,7 @@ export function aggregateRows(tips, tz = null) {
       totalUSD: 0, totalTokens: 0, totalTips: 0, avgTipSize: 0,
       topTippers: [], platforms: [], sessions: [], insights: [],
       predictions: null, whaleAlerts: [], lossAlerts: [], nextMoves: [],
-      bestDay: null, bestHour: null, platformBestTimes: {}, platformDayActivity: {}, canonicalBestTimes: { bestWindow: null, earlySignal: null, grid: [] },
+      bestDay: null, bestHour: null, platformBestTimes: {}, platformDayActivity: {}, bestTimeWindows: calculateBestTimeWindows([], userTz), canonicalBestTimes: { bestWindow: null, earlySignal: null, grid: [] },
       monthlyData: [], bestMonth: null, tipTypeBreakdown: [], platformTipTypes: {},
       privateShowFans: [], spyShowFans: [], earningsVelocity: null, totalStreamMinutes: 0,
       estimatedHourlyRate: 0, hourlyRateSessionCount: 0, hourlyRateTotalMinutes: 0,
@@ -1896,6 +2023,24 @@ export function aggregateRows(tips, tz = null) {
     }
   }
 
+  // ── BEST TIME WINDOWS ($ per streamed hour; hero + Stream Planner) ─────
+  const bestTimeWindows = calculateBestTimeWindows(tips, userTz, { sessions })
+  // High-value fans around each day's recommended window — the existing
+  // bestWindowFanOverlap rule (whales with >= $20 lifetime who tipped on that
+  // weekday within +/-1 local hour), applied to the window actually shown.
+  Object.values(bestTimeWindows.recommendedByDay).flat().forEach(w => {
+    const tipped = new Set()
+    tips.forEach(t => {
+      if (platformKey(t.platform) !== w.platform) return
+      const dt = t.dateRaw || t.date_time
+      if (toLocalDow(dt, userTz) !== w.dayIndex) return
+      if (Math.abs(toLocalHour(dt, userTz) - w.hour) > 1) return
+      tipped.add(`${platformKey(t.platform)}:${(t.username || '').toLowerCase()}`)
+    })
+    const fans = whales.filter(f => f.totalUSD >= 20 && tipped.has(`${platformKey(f.platform)}:${(f.username || '').toLowerCase()}`))
+    w.fanOverlap = { count: fans.length, totalUSD: parseFloat(fans.reduce((x, f) => x + f.totalUSD, 0).toFixed(2)) }
+  })
+
   // ── CANONICAL BEST TIMES (for CommandCenter hero section) ───────────────
   // Builds the bestWindow/earlySignal object that CommandCenter reads.
   // Converts UTC hours to local time + adds confidence tier.
@@ -2013,6 +2158,7 @@ export function aggregateRows(tips, tz = null) {
     meaningfulSessionCount: meaningfulSessions.length,
     lowSignalSessionCount: allValidSessions.length - meaningfulSessions.length,
     momentum, uniqueFanCount,
+    bestTimeWindows,
   }
 }
 

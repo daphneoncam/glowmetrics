@@ -1,6 +1,6 @@
 "use client"
 import { useMemo } from "react"
-import { zonedHour } from "../../lib/creatorTimezone"
+import { zonedHour, zonedDay } from "../../lib/creatorTimezone"
 
 // ═══════════════════════════════════════════════════════════════════════════
 // COMMAND CENTER
@@ -71,16 +71,11 @@ const fmtHour = (h) => {
   const n = ((h % 24) + 24) % 24
   return n === 0 ? "12:00 AM" : n < 12 ? `${n}:00 AM` : n === 12 ? "12:00 PM" : `${n - 12}:00 PM`
 }
-// bestWindow is an hour bucket; a creator plans a stream, not a minute.
-const fmtWindow = (h) => `${fmtHour(h)} – ${fmtHour(h + 2)}`
-
-// Confidence vocabulary comes from the canonical tier, never invented.
-const TIER_COPY = {
-  strong:  "Strong pattern",
-  likely:  "Likely pattern",
-  medium:  "Supported pattern",
-  early:   "Early signal",
-}
+// The window is exactly the measured bucket: one creator-local hour. The
+// hour is numeric (engine bestTimeWindows), so h + 1 is arithmetic.
+const fmtWindow = (h) => `${fmtHour(Number(h))} – ${fmtHour(Number(h) + 1)}`
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+const fmtRate = (n) => `~$${Number(n || 0).toFixed(2)}/hr`
 
 export const card = (extra = {}) => ({ ...glassCard, borderRadius: 16, ...extra })
 
@@ -182,8 +177,8 @@ function WindowProof({ windowRate, baselineRate, sessions, tierLabel, dayLabel, 
   return (
     <div>
       <div style={{ ...label, fontSize: 12, marginBottom: 16 }}>Why this window</div>
-      <Bar v={windowRate} gradient title={`${dayLabel}s ${hourLabel}`} sub={`${sessions} qualifying session${sessions === 1 ? "" : "s"} · ${tierLabel}`} />
-      <Bar v={baselineRate} title="Your typical hour" sub="median across every qualifying session" />
+      <Bar v={windowRate} gradient title={`${dayLabel}s ${hourLabel}`} sub={`${sessions} valid session${sessions === 1 ? "" : "s"} · ${tierLabel}`} />
+      <Bar v={baselineRate} title="Your typical streamed hour" sub="all your valid sessions · estimated" />
     </div>
   )
 }
@@ -206,28 +201,30 @@ export default function CommandCenter({
   onMessageFan,
 }) {
   // ── All values READ from the frozen layer. No local aggregation. ──
-  const bestWindow   = analytics?.canonicalBestTimes?.bestWindow || null
-  const earlySignal  = analytics?.canonicalBestTimes?.earlySignal || null
-  const grid         = analytics?.canonicalBestTimes?.grid || []
-  const overlap      = analytics?.bestWindowFanOverlap || null
+  // Today's recommendation: the best qualifying platform x 1-hour window on
+  // the creator-local weekday, from the shared best-time formula ($ per
+  // streamed hour, >= 3 separate days, calculateConfidence above "Very Low").
+  // null => "Not enough data yet" for today; the full week lives in the
+  // Stream Planner, which reads the same function.
+  const bestTimes    = analytics?.bestTimeWindows || null
+  const todayName    = DAY_NAMES[tz ? zonedDay(new Date(), tz) : new Date().getDay()]
+  const nowHour      = tz ? zonedHour(new Date(), tz) : new Date().getHours()
+  // Every recommended window for today, best first. Only windows that have
+  // not ended are recommended: the current hour (still in progress) and later
+  // ones. If today's windows have all passed, say so rather than recommend a
+  // past hour.
+  const todayWindows = bestTimes?.recommendedByDay?.[todayName] || []
+  const todayBest    = todayWindows.find(w => w.hour >= nowHour) || null
+  const passedBest   = !todayBest && todayWindows.length > 0 ? todayWindows[0] : null
+  const overlap      = todayBest?.fanOverlap || null
   const hourlyRate   = analytics?.estimatedHourlyRate ?? 0
   const totalUSD     = analytics?.totalUSD ?? 0
   const fanCount     = analytics?.uniqueFanCount ?? 0
   const sessionCount = analytics?.meaningfulSessionCount ?? 0
   const streamHours  = (analytics?.totalStreamMinutes ?? 0) / 60
   const momentum     = analytics?.momentum || null
-  const missedByPlat = analytics?.missedRevenue?.cumulative_by_platform || {}
   const whales       = analytics?.whales || []
   const platforms    = analytics?.platforms || []
-
-  // Platform with the largest measured best-window rate gap — same ranking
-  // the Missed Revenue card uses.
-  const topGap = useMemo(() => {
-    const e = Object.entries(missedByPlat)
-    if (!e.length) return null
-    const [platform, m] = e.sort((a, b) => b[1].rateGapUsdPerHour - a[1].rateGapUsdPerHour)[0]
-    return { platform, ...m }
-  }, [missedByPlat])
 
   const topPlatform = useMemo(
     () => [...platforms].sort((a, b) => (b.usdPerHour || 0) - (a.usdPerHour || 0))[0] || null,
@@ -244,19 +241,15 @@ export default function CommandCenter({
     [whales]
   )
 
-  const baseline = topGap?.overallMedianUsdPerHour ?? null
-  const pctAbove = (bestWindow && baseline > 0)
-    ? Math.round(((bestWindow.medianUsdPerHour - baseline) / baseline) * 100) : null
-  // Opportunity is quoted for the WINDOW WE RECOMMEND (a 2-hour bucket, the
-  // same span fmtWindow renders), not the account's average session length.
-  // Quoting a 1.1-hour basis under a "go live 8-10 AM" headline understated
-  // the very thing the CTA asks for.
-  const WINDOW_HOURS = 2
-  const oppLow  = topGap ? topGap.rateGapUsdPerHour * WINDOW_HOURS : null
-  const oppHigh = topGap ? topGap.rateGapUsdPerHour * WINDOW_HOURS * 1.5 : null
+  // Comparison baseline: the engine's estimatedHourlyRate — USD / streamed
+  // hours over all valid sessions (>= 30 min AND >= 2 tips, known duration),
+  // the same units and session rule as the window rate. Read, not computed.
+  // null/0 until there is a valid session, in which case no comparison is drawn.
+  const baseline = hourlyRate > 0 ? hourlyRate : null
+  const pctAbove = (todayBest && baseline > 0)
+    ? Math.round(((todayBest.usdPerStreamedHour - baseline) / baseline) * 100) : null
 
-  const hasWindow = !!bestWindow
-  const nowHour = tz ? zonedHour(new Date(), tz) : new Date().getHours()
+  const hasWindow = !!todayBest
   const greeting = `Good ${nowHour < 12 ? "morning" : nowHour < 18 ? "afternoon" : "evening"}, ${firstName || "there"}`
 
   // Hourly distribution for the evidence bar chart — read straight off the
@@ -289,68 +282,60 @@ export default function CommandCenter({
 
             {hasWindow ? (
               <>
-                <div style={{ fontSize: 38, fontWeight: 800, color: C.white, letterSpacing: "-0.035em", lineHeight: 1.12 }}>
-                  Go live {fmtWindow(bestWindow.localHour)}
-                  {bestWindow.topPlatform ? <> on {bestWindow.topPlatform}</> : null}
+                <div data-testid="hero-headline" style={{ fontSize: 38, fontWeight: 800, color: C.white, letterSpacing: "-0.035em", lineHeight: 1.12 }}>
+                  Go live today {fmtWindow(todayBest.hour)} on {todayBest.platform}
                 </div>
-                {/* Confidence + sample sit directly under the recommendation
-                    instead of being buried in a chip further down the page. */}
+                {/* Confidence + sample sit directly under the recommendation. */}
                 <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap", marginTop: 14 }}>
                   <span style={{ fontSize: 12.5, fontWeight: 700, color: C.gold, background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.28)", padding: "5px 12px", borderRadius: 20 }}>
-                    {TIER_COPY[bestWindow.tier] || "Pattern"}
+                    {todayBest.confidence.label}
                   </span>
-                  <span style={{ fontSize: 13, color: C.text }}>
-                    based on <strong style={{ color: C.white }}>{bestWindow.sessionCount} qualifying session{bestWindow.sessionCount === 1 ? "" : "s"}</strong> in this window
+                  <span data-testid="hero-sample" style={{ fontSize: 13, color: C.text }}>
+                    based on <strong style={{ color: C.white }}>{todayBest.validSessionCount} valid session{todayBest.validSessionCount === 1 ? "" : "s"}</strong> across <strong style={{ color: C.white }}>{todayBest.localDates} separate {todayName}s</strong>
                   </span>
                 </div>
-                <div style={{ fontSize: 16, color: C.text, marginTop: 16, lineHeight: 1.62, maxWidth: 500 }}>
-                  {bestWindow.localDay}s are your highest-earning window. You average{" "}
-                  <strong style={{ color: C.cyan }}>{fmtUsd(bestWindow.medianUsdPerHour)}/hr</strong> here
-                  {pctAbove != null && pctAbove > 0 && <> — <strong style={{ color: C.cyan }}>{pctAbove}% higher</strong> than your typical hour</>}.
+                <div style={{ fontSize: 16, color: C.text, marginTop: 16, lineHeight: 1.62, maxWidth: 520 }}>
+                  On {todayName}s this hour on {todayBest.platform} earns about{" "}
+                  <strong style={{ color: C.cyan }}>{fmtRate(todayBest.usdPerStreamedHour)} streamed</strong>
+                  {pctAbove != null && pctAbove > 0 && <> — <strong style={{ color: C.cyan }}>{pctAbove}% higher</strong> than your typical streamed hour</>}.
+                  <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>
+                    Estimated: imported tips don't include stream start and end times, so streamed time is measured from your first to last tip in each session.
+                  </div>
                 </div>
               </>
             ) : (
               <>
-                <div style={{ fontSize: 22, fontWeight: 800, color: C.white, letterSpacing: "-0.02em", lineHeight: 1.25 }}>
-                  {earlySignal ? "A pattern is starting to form" : "Not enough history for a reliable window yet"}
+                <div data-testid="hero-headline" style={{ fontSize: 22, fontWeight: 800, color: C.white, letterSpacing: "-0.02em", lineHeight: 1.25 }}>
+                  {passedBest ? "Today's best window has already passed" : "Not enough data yet for today's best window"}
                 </div>
-                <div style={{ fontSize: 13.5, color: C.text, marginTop: 11, lineHeight: 1.6, maxWidth: 480 }}>
-                  {earlySignal
-                    ? <>{earlySignal.localDay}s around {fmtWindow(earlySignal.localHour)} is your strongest so far, but only {earlySignal.sessionCount} session{earlySignal.sessionCount === 1 ? "" : "s"} back it up. A few more streams will confirm or replace it.</>
-                    : <>CamCash needs a handful of qualifying sessions before it can tell a real earning window apart from one good night. Keep importing and this fills in.</>}
+                <div style={{ fontSize: 13.5, color: C.text, marginTop: 11, lineHeight: 1.6, maxWidth: 500 }}>
+                  {passedBest
+                    ? <>Your best {todayName} window was {fmtWindow(passedBest.hour)} on {passedBest.platform}, and no later {todayName} window has enough history to recommend. Your streaming plan shows the rest of the week.</>
+                    : <>CamCash names a {todayName} window only after you've streamed it on at least {bestTimes?.minLocalDates || 3} separate {todayName}s with enough streamed time to be more than one good night. Your streaming plan shows every day of the week.</>}
                 </div>
               </>
             )}
 
             <div style={{ marginTop: 26 }}>
-              <BrandButton onClick={onPlanStream} style={{ padding: "15px 28px", fontSize: 16, borderRadius: 12 }}>{hasWindow ? "Plan My Stream" : "Open Stream Planner"}</BrandButton>
+              <BrandButton onClick={onPlanStream} style={{ padding: "15px 28px", fontSize: 16, borderRadius: 12 }}>See your full streaming plan →</BrandButton>
             </div>
           </div>
 
-          {/* RIGHT: opportunity + the chart that proves it. The reference
-              puts the earnings-per-hour distribution here; leaving this half
-              empty was the single largest visual defect in the first pass. */}
+          {/* RIGHT: the proof beside the recommendation — today's window rate
+              against your typical streamed hour, both from the engine. (The
+              former "estimated opportunity" range was removed: it multiplied
+              by an unsupported 1.5 and read an engine field that never
+              existed, so this half rendered empty.) */}
           {hasWindow && (
             <div style={{ flex: "1 1 340px", minWidth: 280 }}>
-              {topGap && (
-                <div style={{ textAlign: "right", marginBottom: 16 }}>
-                  <div style={{ ...label, color: C.muted }}>Estimated opportunity</div>
-                  <div style={{ fontSize: 30, fontWeight: 800, color: C.green, letterSpacing: "-0.03em", marginTop: 6 }}>
-                    +{fmtUsd0(oppLow)} – {fmtUsd0(oppHigh)}
-                  </div>
-                  <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>
-                    if you stream the full 2-hour window, at the {fmtUsd(topGap.rateGapUsdPerHour)}/hr gap
-                  </div>
-                </div>
-              )}
               {baseline != null && (
                 <WindowProof
-                  windowRate={bestWindow.medianUsdPerHour}
+                  windowRate={todayBest.usdPerStreamedHour}
                   baselineRate={baseline}
-                  sessions={bestWindow.sessionCount}
-                  tierLabel={TIER_COPY[bestWindow.tier] || "Pattern"}
-                  dayLabel={bestWindow.localDay}
-                  hourLabel={fmtWindow(bestWindow.localHour)}
+                  sessions={todayBest.validSessionCount}
+                  tierLabel={todayBest.confidence.label}
+                  dayLabel={todayName}
+                  hourLabel={fmtWindow(todayBest.hour)}
                 />
               )}
             </div>
@@ -361,15 +346,15 @@ export default function CommandCenter({
       {/* ── EVIDENCE CHIPS ─────────────────────────────────────────── */}
       {hasWindow && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(158px, 1fr))", gap: 11 }}>
-          <Chip icon="🕐" title="Best window" value={fmtWindow(bestWindow.localHour)} sub={`${bestWindow.localDay}s · ${TIER_COPY[bestWindow.tier] || "Pattern"}`} />
+          <Chip icon="🕐" title="Today's window" value={fmtWindow(todayBest.hour)} sub={`${todayName}s on ${todayBest.platform} · ${todayBest.confidence.label}`} />
           <Chip icon="👥" title={overlap?.count ? "Fans active in it" : "Fan overlap"}
                 value={overlap?.count ? `${overlap.count} high-value fan${overlap.count === 1 ? "" : "s"}` : "None yet"}
-                sub={overlap?.count ? `${fmtUsd0(overlap.totalUSD)} lifetime combined` : "No repeat fans in this window"}
+                sub={overlap?.count ? `${fmtUsd0(overlap.totalUSD)} lifetime combined` : "No fan with $20+ lifetime has tipped near this hour"}
                 accent={overlap?.count ? C.indigo : C.muted} />
           {topPlatform && (
             <Chip icon="📈" title={`${topPlatform.platform} is #1`} value={`${fmtUsd(topPlatform.usdPerHour)}/hr`} sub={`${topPlatform.sessions} sessions · ${fmtHours(topPlatform.hours || 0)}`} accent={C.cyan} />
           )}
-          <Chip icon="📊" title="Sample behind it" value={`${bestWindow.sessionCount} session${bestWindow.sessionCount === 1 ? "" : "s"}`} sub={TIER_COPY[bestWindow.tier] || "Pattern"} accent={C.gold} />
+          <Chip icon="📊" title="Sample behind it" value={`${todayBest.validSessionCount} valid session${todayBest.validSessionCount === 1 ? "" : "s"}`} sub={`${todayBest.localDates} separate ${todayName}s · ${todayBest.confidence.label}`} accent={C.gold} />
         </div>
       )}
 
@@ -478,13 +463,13 @@ export default function CommandCenter({
               You found the window. Pro builds the week around it.
             </div>
             <div style={{ fontSize: 14, color: C.text, marginTop: 8, lineHeight: 1.65 }}>
-              You already know <strong style={{ color: C.cyan }}>{bestWindow.localDay}s {fmtWindow(bestWindow.localHour)}</strong> is where you earn most
-              {topGap ? <> and that the gap there is worth <strong style={{ color: C.green }}>{fmtUsd(topGap.rateGapUsdPerHour)}/hr</strong></> : null}.
+              You already know <strong style={{ color: C.cyan }}>{todayName}s {fmtWindow(todayBest.hour)}</strong> on {todayBest.platform} earns about {fmtRate(todayBest.usdPerStreamedHour)} streamed
+              {pctAbove != null && pctAbove > 0 ? <> — <strong style={{ color: C.green }}>{pctAbove}% above</strong> your typical streamed hour</> : null}.
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 13 }}>
               {[
                 `Every ranked window for the week, not just the top one`,
-                topGap ? `Which platform to run in each window — ${topGap.platform} is only your biggest gap today` : `Which platform to run in each window`,
+                `Which platform to run in each window, not just today's`,
                 overlap?.count ? `Alerts when your ${overlap.count} high-value fan${overlap.count === 1 ? "" : "s"} in this window go quiet` : `Alerts when a high-value supporter goes quiet`,
                 `A forecast you can hold next week's schedule against`,
               ].map((line, i) => (

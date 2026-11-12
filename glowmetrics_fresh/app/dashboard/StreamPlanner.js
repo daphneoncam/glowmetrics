@@ -13,7 +13,7 @@ import {
 // (confidence in ONE hour-of-day/day-of-week bucket, not in the dataset as a
 // whole) and are left as-is; flagged in the report as a parallel formula
 // worth reconciling in a dedicated follow-up rather than blindly merged here.
-import { calculateConfidence } from "../../lib/analytics"
+import { calculateBestTimeWindows } from "../../lib/analytics"
 import PlannedStreams from "./PlannedStreams"
 import { resolveCreatorTimeZone, zonedHour, zonedDay, zonedMonthKey, zonedParts } from "../../lib/creatorTimezone"
 
@@ -123,39 +123,52 @@ function platformEfficiency(tips, tz) {
   return out
 }
 
-// Returns [{ day, hour, avgUsdPerHr, totalUsd, sessionCount, confidence, topPlatform, newTipperRate }]
+// Windows come from the shared best-time formula (lib/analytics.js
+// calculateBestTimeWindows): USD / streamed hours from valid sessions
+// (>= 30 min AND >= 2 tips), per creator-local weekday x hour, with a window
+// counted as a pattern only on >= 3 separate local dates. This planner no
+// longer groups sessions or computes rates itself — that parallel formula
+// (4-hour session gap, 0.5 h duration floor, start-hour bucketing) is gone.
+// One window per PLATFORM x weekday x hour — the same cells the hero reads, so
+// the planner can never name a platform (or a blended rate) the hero would not.
+// Returns [{ day, hour, avgUsdPerHr, totalUsd, sessionCount, localDates, eligible,
+//            recommended, confidence, confidenceLevel, confidenceLabel, topPlatform, newTipperRate }]
+const CONF_LEVEL_TO_TIER = { High: "high", Medium: "medium", Low: "low", "Very Low": "needs-testing" }
 function bestWindows(tips, tz) {
-  const sessions = groupIntoSessions(tips, tz)
+  const shared = calculateBestTimeWindows(tips, tz)
   const firstSeen = {}
   ;[...tips].sort((a, b) => new Date(a.date_time) - new Date(b.date_time)).forEach((t) => {
     const u = t.username || "unknown"
     if (!(u in firstSeen)) firstSeen[u] = new Date(t.date_time).getTime()
   })
-  const map = {}
-  sessions.forEach((s) => {
-    const k = `${s.day}-${s.hour}`
-    if (!map[k]) map[k] = { day: s.day, hour: s.hour, sessions: [], pu: {}, newTips: 0, allTips: 0 }
-    const m = map[k]
-    m.sessions.push(s)
-    if (s.platform) m.pu[s.platform] = (m.pu[s.platform] || 0) + s.totalUsd
-    s.tips.forEach((t) => {
-      m.allTips++
-      const u = t.username || "unknown"
-      if (firstSeen[u] === new Date(t.date_time).getTime()) m.newTips++
-    })
+  const tipStats = {}
+  tips.forEach((t) => {
+    const dt = new Date(t.date_time)
+    const k = `${zonedDay(dt, tz)}-${zonedHour(dt, tz)}`
+    if (!tipStats[k]) tipStats[k] = { all: 0, fresh: 0 }
+    tipStats[k].all++
+    if (firstSeen[t.username || "unknown"] === dt.getTime()) tipStats[k].fresh++
   })
-  return Object.values(map).map((m) => {
-    const cnt = m.sessions.length
-    return {
-      day: m.day, hour: m.hour,
-      avgUsdPerHr:   m.sessions.reduce((n, s) => n + s.usdHr, 0) / cnt,
-      totalUsd:      m.sessions.reduce((n, s) => n + s.totalUsd, 0),
-      sessionCount:  cnt,
-      confidence:    cnt >= 5 ? "high" : cnt >= 3 ? "medium" : cnt >= 2 ? "low" : "needs-testing",
-      topPlatform:   Object.entries(m.pu).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
-      newTipperRate: m.allTips > 0 ? m.newTips / m.allTips : 0,
-    }
-  }).sort((a, b) => b.avgUsdPerHr - a.avgUsdPerHr)
+  return shared.platformCells
+    .filter((c) => c.usdPerStreamedHour != null)
+    .map((c) => {
+      const st = tipStats[`${c.dayIndex}-${c.hour}`]
+      return {
+        day: c.dayIndex, hour: c.hour,
+        avgUsdPerHr: c.usdPerStreamedHour,
+        totalUsd: c.totalUSD,
+        sessionCount: c.validSessionCount,
+        localDates: c.localDates,
+        eligible: c.eligible,
+        recommended: c.recommended,
+        // "needs-testing" until the window has >= 3 separate local dates.
+        confidence: c.eligible ? (CONF_LEVEL_TO_TIER[c.confidence.level] || "needs-testing") : "needs-testing",
+        confidenceLevel: c.confidence.level,
+        confidenceLabel: c.confidence.label,
+        topPlatform: c.platform,
+        newTipperRate: st && st.all > 0 ? st.fresh / st.all : 0,
+      }
+    })
 }
 
 // Windows with 0-1 sessions that show promise based on nearby strong windows
@@ -400,7 +413,7 @@ function PlanTab({ tips, windows, whales, prefs, savePrefs, tz }) {
     return Array.from({ length: 7 }, (_, day) => {
       const dayName = localDay(day)
       if (!prefs.days[dayName]) return { day, dayName, off: true, isToday: dayName === today }
-      let cands = windows.filter((w) => w.day === day && blockEnabled(w.hour))
+      let cands = windows.filter((w) => w.day === day && blockEnabled(w.hour) && (mode === "Testing Mode" || w.recommended))
       if (mode === "Growth Mode")        cands = [...cands].sort((a, b) => b.newTipperRate - a.newTipperRate || b.avgUsdPerHr - a.avgUsdPerHr)
       else if (mode === "Whale Watch")   cands = [...cands].sort((a, b) => (whaleKeys.has(`${b.day}-${b.hour}`) ? 1 : 0) - (whaleKeys.has(`${a.day}-${a.hour}`) ? 1 : 0) || b.avgUsdPerHr - a.avgUsdPerHr)
       else if (mode === "Testing Mode") {
@@ -452,7 +465,7 @@ function PlanTab({ tips, windows, whales, prefs, savePrefs, tz }) {
                 <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
                   <span style={{ fontSize:18 }}>⚡</span>
                   <span style={{ color:PRIMARY, fontWeight:800, fontSize:15 }}>
-                    Tonight: {localHr(tonight.window.hour)}–{localHr(tonight.window.hour + 2)} on {tonight.window.topPlatform || "your top platform"}
+                    Tonight: {localHr(tonight.window.hour)}–{localHr(tonight.window.hour + 1)} on {tonight.window.topPlatform || "your top platform"}
                   </span>
                   <ConfBadge level={tonight.window.confidence} />
                 </div>
@@ -545,7 +558,7 @@ function PlanTab({ tips, windows, whales, prefs, savePrefs, tz }) {
                   <span style={{ color:MUTED, fontSize:12, gridColumn:"2/7" }}>Day off</span>
                 ) : row.window ? (
                   <>
-                    <span style={{ color:TEXT, fontSize:12 }}>{localHr(row.window.hour)}–{localHr(row.window.hour + 2)}</span>
+                    <span style={{ color:TEXT, fontSize:12 }}>{localHr(row.window.hour)}–{localHr(row.window.hour + 1)}</span>
                     <PlatChip name={row.window.topPlatform} />
                     <span style={{ color:PRIMARY, fontSize:13, fontWeight:600 }}>{row.window.sessionCount ? fmt$(row.window.avgUsdPerHr) : "—"}</span>
                     <ConfBadge level={row.window.confidence} />
@@ -578,7 +591,7 @@ function PlanTab({ tips, windows, whales, prefs, savePrefs, tz }) {
               return (
                 <div key={k} style={{ background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.22)", borderRadius:10, padding:14 }}>
                   <div style={{ color:INDIGO, fontWeight:700, fontSize:13, marginBottom:4 }}>
-                    🧪 {localDay(slot.day)} {localHr(slot.hour)}–{localHr(slot.hour + 2)}
+                    🧪 {localDay(slot.day)} {localHr(slot.hour)}–{localHr(slot.hour + 1)}
                   </div>
                   <div style={{ color:TEXT, fontSize:12, lineHeight:1.6, marginBottom:8 }}>{slot.reason}</div>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
@@ -972,15 +985,14 @@ function StreamPlannerContent({ tips, isPro, tz }) {
   // Overall confidence in the dataset as a whole (spec Step 3) — drives
   // whether a personalized Peak Earning Window claim is shown at all, using
   // the planner's own valid-session-count/streamed-hours inputs against the
-  // single calculateConfidence() source of truth.
-  const { level: confidenceLevel, label: confidenceLabel } = useMemo(() => {
-    const sessions = groupIntoSessions(tips, tz)
-    const validSessions = sessions.filter((s) => s.tips.length >= 2)
-    const streamedHours = validSessions.reduce((n, s) => n + (s.durationHrs || 0), 0)
-    return calculateConfidence(validSessions.length, streamedHours)
-  }, [tips])
-
-  const bestWindow = windows[0] || null
+  // calculateConfidence via the shared best-time windows (each window carries its own).
+  // The headline window is the best RECOMMENDED window: a real pattern
+  // (>= 3 separate local dates) whose OWN confidence is above "Very Low".
+  // Its confidence is that window's — not the whole account's history — so an
+  // established account cannot get a confident headline for a weak window.
+  const bestWindow = windows.find((w) => w.recommended) || null
+  const confidenceLevel = bestWindow ? bestWindow.confidenceLevel : 'Very Low'
+  const confidenceLabel = bestWindow ? bestWindow.confidenceLabel : 'Not enough data yet'
   const showPersonalizedPeak = (confidenceLevel === 'Medium' || confidenceLevel === 'High') && !!bestWindow
   const showProTeaser = confidenceLevel === 'Medium' && !isPro
 
@@ -1008,7 +1020,7 @@ function StreamPlannerContent({ tips, isPro, tz }) {
         <div style={{ ...cardS(), marginBottom:20, borderColor:`${CYAN}44`, position:'relative' }}>
           <div style={{ color:CYAN, fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'.04em', marginBottom:6 }}>{confidenceLabel}</div>
           <div style={{ color:PRIMARY, fontSize:16, fontWeight:800, marginBottom:4 }}>Peak Earning Window: {localHr(bestWindow.hour)} on {localDay(bestWindow.day)}</div>
-          <div style={{ color:TEXT, fontSize:13 }}>Averaging {fmt$(bestWindow.avgUsdPerHr)}/hr across {bestWindow.sessionCount} session{bestWindow.sessionCount === 1 ? '' : 's'} in this window.</div>
+          <div style={{ color:TEXT, fontSize:13 }}>Averaging about {fmt$(bestWindow.avgUsdPerHr)}/hr streamed (estimated) across {bestWindow.sessionCount} valid session{bestWindow.sessionCount === 1 ? '' : 's'} on {bestWindow.localDates} separate days.</div>
           {showProTeaser && (
             <div style={{ marginTop:12, display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
               <span style={{ color:MUTED, fontSize:12 }}>Unlock full scheduling, whale windows, and lift tracking.</span>
