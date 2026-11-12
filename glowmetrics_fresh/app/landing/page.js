@@ -900,15 +900,15 @@ export default function LandingPage() {
 
   // Feature strip data (additive — new section, matches redesign reference)
   const featureStrip = [
-    { icon: "⏱", accent: T.cyan,    title: "Best hours",         body: "Discover the exact hours when you earn the most.",           href: "/demo", cta: "See peak times →" },
-    { icon: "★", accent: T.pink,    title: "Top fans & profiles",body: "Every high-value fan, ranked, with churn risk and AI predictions.", href: "/demo", cta: "See fan profiles →" },
-    { icon: "💌", accent: T.magenta,title: "Message re-generator",body: "AI-written re-engagement messages for fans going cold.",      href: "/demo", cta: "Try the generator →" },
-    { icon: "📊", accent: T.purple, title: "Platform comparison", body: "Compare platforms and focus on what pays more.",              href: "/demo", cta: "See ROI breakdown →" },
-    { icon: "🎥", accent: T.blue,   title: "Sessions breakdown",  body: "Every session, timed and totaled, so you see what worked.",   href: "/demo", cta: "See sessions →" },
-    { icon: "🗺️", accent: T.cyan,   title: "Money Map",           body: "A heat map of exactly when and where your earnings land.",   href: "/demo", cta: "Explore the map →" },
-    { icon: "📅", accent: T.gold,   title: "Streaming plan",      body: "A personalized weekly schedule built from your own data.",    href: "/demo", cta: "Build your plan →" },
-    { icon: "🎬", accent: T.pink,   title: "Room title generator",body: "Mood + goal in, a scroll-stopping title out — instantly.",    href: "/demo", cta: "Generate a title →" },
-    { icon: "🔴", accent: T.red,    title: "Live Mode",           body: "Watch tips arrive during a real stream — pace, goal, coaching.", href: "/demo", cta: "Watch live mode →" },
+    { icon: "⏱", accent: T.cyan,    title: "Best hours",         body: "Discover the exact hours when you earn the most.",           href: "/demo?tab=platforms", cta: "See peak times →" },
+    { icon: "★", accent: T.pink,    title: "Top fans & profiles",body: "Every high-value fan, ranked, with churn risk and AI predictions.", href: "/demo?tab=whales", cta: "See fan profiles →" },
+    { icon: "💌", accent: T.magenta,title: "Message re-generator",body: "AI-written re-engagement messages for fans going cold.",      href: "/demo?tab=whales", cta: "Try the generator →" },
+    { icon: "📊", accent: T.purple, title: "Platform comparison", body: "Compare platforms and focus on what pays more.",              href: "/demo?tab=platforms", cta: "See ROI breakdown →" },
+    { icon: "🎥", accent: T.blue,   title: "Sessions breakdown",  body: "Every session, timed and totaled, so you see what worked.",   href: "/demo?tab=sessions", cta: "See sessions →" },
+    { icon: "🗺️", accent: T.cyan,   title: "Money Map",           body: "A heat map of exactly when and where your earnings land.",   href: "/demo?tab=moneymap", cta: "Explore the map →" },
+    { icon: "📅", accent: T.gold,   title: "Streaming plan",      body: "A personalized weekly schedule built from your own data.",    href: "/demo?tab=plan", cta: "Build your plan →" },
+    { icon: "🎬", accent: T.pink,   title: "Room title generator",body: "Mood + goal in, a scroll-stopping title out — instantly.",    href: "/demo?tab=titles", cta: "Generate a title →" },
+    { icon: "🔴", accent: T.red,    title: "Live Mode",           body: "Watch tips arrive during a real stream — pace, goal, coaching.", href: "/demo?tab=live", cta: "Watch live mode →" },
   ]
 
   const faqs = [

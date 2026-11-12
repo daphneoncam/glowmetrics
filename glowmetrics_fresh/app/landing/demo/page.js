@@ -439,6 +439,8 @@ function WalkthroughOverlay({ onComplete, onTabChange }) {
 }
 
 // ─── MAIN DEMO DASHBOARD ─────────────────────────────────────────────────────
+const VALID_TABS = new Set(["overview","whales","platforms","sessions","monthly","moneymap","plan","live","titles","upload"])
+
 export default function DemoDashboard() {
   const [activeTab, setActiveTab]         = useState("overview")
   const [selectedWhale, setSelectedWhale] = useState(null)
@@ -455,6 +457,19 @@ export default function DemoDashboard() {
   const [expandTiming, setExpandTiming]   = useState(false)
   const [expandInsights, setExpandInsights] = useState(false)
   const [showWalkthrough, setShowWalkthrough] = useState(true)
+
+  // Deep-link support: feature cards on the landing page link here with
+  // ?tab=whales / ?tab=live / etc. so each CTA opens on the right screen
+  // instead of everyone landing on the same Overview tab. Runs after
+  // hydration (not as a lazy useState initializer) to avoid a server/client
+  // markup mismatch, since each tab renders an entirely different subtree.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("tab")
+    if (requested && VALID_TABS.has(requested)) {
+      setActiveTab(requested)
+      setShowWalkthrough(false)
+    }
+  }, [])
 
   // Live Mode demo state
   const [liveActive, setLiveActive]   = useState(false)

@@ -12,6 +12,7 @@ export const metadata = {
   alternates: { canonical: 'https://www.camcashgrl.com/landing/demo' },
 }
 
-export default function DemoPage() {
-  redirect('/landing/demo')
+export default function DemoPage({ searchParams }) {
+  const tab = searchParams?.tab
+  redirect(tab ? `/landing/demo?tab=${encodeURIComponent(tab)}` : '/landing/demo')
 }
