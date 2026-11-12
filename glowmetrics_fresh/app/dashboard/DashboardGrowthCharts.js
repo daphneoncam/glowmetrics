@@ -184,8 +184,8 @@ export default function DashboardGrowthCharts({ tips, sessions, monthlyData, tim
           <ResponsiveContainer width="100%" height={230}>
             <ComposedChart data={series} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={BORDER} vertical={false} />
-              <XAxis dataKey="label" tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} interval={mode === "daily" ? "preserveStartEnd" : 0} />
-              <YAxis yAxisId="left" tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
+              <XAxis dataKey="label" tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} interval={mode === "daily" ? "preserveStartEnd" : mode === "time" ? 2 : 0} />
+              <YAxis yAxisId="left" tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(1).replace(/\.0$/, "")}k` : `${Math.round(v)}`} />
               <YAxis yAxisId="right" orientation="right" tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}h`} />
               <Tooltip content={<GrowthTooltip />} wrapperStyle={{ zIndex: 50 }} />
               <Legend wrapperStyle={{ fontSize: 11, color: MUTED }} />
