@@ -1,0 +1,6 @@
+# Local environment files — keep secrets out of git.
+# App-level env files are also ignored in glowmetrics_fresh/.gitignore.
+env.local
+.env
+.env.*
+!.env.example
