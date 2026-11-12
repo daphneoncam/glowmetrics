@@ -4313,8 +4313,11 @@ const stopImportMessageRotation = () => {
                     style={{ width: "100%", padding: "10px 14px", borderRadius: 9, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: C.white, fontSize: 14, outline: "none", opacity: uploading ? 0.6 : 1 }}>
                     <option value="">Auto-detect (recommended)</option>
                     {["Chaturbate", "BongaCams", "MyFreeCams", "Stripchat", "CamSoda"].map(p => {
+                      // Not disabled: a locked platform must stay selectable so
+                      // uploading against it can show the preview + soft paywall
+                      // below, instead of silently blocking selection itself.
                       const locked = freePlatformLimitReached && !allPlatforms.includes(p)
-                      return <option key={p} value={p} disabled={locked}>{locked ? `🔒 ${p} — requires Pro` : p}</option>
+                      return <option key={p} value={p}>{locked ? `🔒 ${p} — requires Pro` : p}</option>
                     })}
                   </select>
                 </div>
