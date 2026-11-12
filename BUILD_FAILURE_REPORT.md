@@ -1,4 +1,20 @@
 # Build Failure Report & CI/CD Status
+
+> ## ⚠️ SUPERSEDED — migration state in this report is STALE (verified 2026-10-28)
+> Do **not** use this file as the source of truth for migration state.
+>
+> **`20261010_lock_profile_entitlements` is already applied in production** (project `hlsdlaibnayzbfflxclj`). Read-only catalog checks on 2026-10-28 found:
+> - trigger `zz_guard_profiles_primary_platform` present and enabled;
+> - `anon`/`authenticated` hold only SELECT/REFERENCES/TRIGGER/MAINTAIN on `profiles`, `subscriptions`, `promo_codes`, `promo_code_redemptions` (no INSERT/UPDATE/DELETE/TRUNCATE);
+> - browser column grants limited to the migration's allow-list (plus `timezone` UPDATE from `20261024`); `primary_pro_platform` has no browser grant.
+>
+> Known differences (none change behavior): the production function text lacks the file's comments and uses CRLF line endings; `service_role` has EXECUTE on the guard function (Supabase default privileges). The migration is **not** recorded in `supabase_migrations` history (no row for version `20261010`); recording it is a separate, undecided step.
+>
+> Other statements below that were **not** re-verified on 2026-10-28 and should not be relied on: the GitHub Actions failure analysis and the test counts. The "What It Does" list is also inaccurate: the migration uses column privileges and a trigger, and has no audit logging, no `subscription_id` error string and is 94 lines (not 127).
+>
+> Original report (2026-10-26) follows unchanged.
+
+---
 **Last Updated:** October 26, 2026 · 23:24 UTC  
 **Status:** ⚠️ CODE PASSING · GITHUB ACTIONS ENVIRONMENT ISSUE · SECURITY MIGRATION PENDING
 
