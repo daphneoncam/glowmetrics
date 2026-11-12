@@ -45,16 +45,16 @@ async function sendAlert(supabase, emailType, subject, text) {
     const resendResponse = await response.json()
 
     if (response.ok && resendResponse.id) {
-      await logEmail(emailType, 'daphneoncam@gmail.com', subject, 'sent', resendResponse, null)
+      await logEmail(supabase, emailType, 'daphneoncam@gmail.com', subject, 'sent', resendResponse, null)
       console.log(`[sendAlert] Email sent successfully: ${resendResponse.id}`)
       return true
     } else {
-      await logEmail(emailType, 'daphneoncam@gmail.com', subject, 'failed', resendResponse, resendResponse.message || 'Unknown error')
+      await logEmail(supabase, emailType, 'daphneoncam@gmail.com', subject, 'failed', resendResponse, resendResponse.message || 'Unknown error')
       console.error(`[sendAlert] Resend API error: ${resendResponse.message}`)
       return false
     }
   } catch (e) {
-    await logEmail(emailType, 'daphneoncam@gmail.com', subject, 'failed', null, e.message)
+    await logEmail(supabase, emailType, 'daphneoncam@gmail.com', subject, 'failed', null, e.message)
     console.error(`[sendAlert] Exception: ${e.message}`)
     return false
   }
