@@ -241,7 +241,7 @@ export default function Page() {
           This blog covers the basics, but the complete <strong>Cam Girl 101: Psychology & Marketing Hacks</strong> guide has 44 pages of advanced strategies, templates, scripts, and detailed breakdowns. From menu psychology to room design positioning to advanced pricing models.
         </div>
         <CamGirl101CTA
-          href="https://www.etsy.com/listing/4583534851/cam-girl-101-psychology-marketing-hacks?ref=listings_manager_grid"
+          href="https://www.etsy.com/listing/4583534851/cam-girl-101psychology-marketing-hacks"
           text="🛍️ Get Full Guide on Etsy"
           style={s.etsyBtn}
           isEtsy={true}
@@ -271,7 +271,7 @@ export default function Page() {
             isEtsy={false}
           />
           <CamGirl101CTA
-            href="https://www.etsy.com/listing/4583534851/cam-girl-101-psychology-marketing-hacks?ref=listings_manager_grid"
+            href="https://www.etsy.com/listing/4583534851/cam-girl-101psychology-marketing-hacks"
             text="Full Guide"
             style={s.etsyBtn}
             isEtsy={true}
