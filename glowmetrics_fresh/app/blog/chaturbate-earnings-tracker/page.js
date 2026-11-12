@@ -269,7 +269,7 @@ export default function ChaturbateEarningsTracker() {
           Available on Etsy — editable PDF and printable pages for Chaturbate cam models
         </div>
         <a
-          href="REPLACE_WITH_EXACT_ETSY_LISTING_URL"
+          href="https://www.etsy.com/listing/4545112282/chaturbate-earnings-tracker-bundle-44"
           target="_blank"
           rel="noopener noreferrer"
           style={s.ctaBtn}
