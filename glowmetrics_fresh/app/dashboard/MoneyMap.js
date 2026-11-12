@@ -352,7 +352,7 @@ function MoneyMapTab({ tips, isPro=true, tz }) {
               ))}
               {/* Day rows */}
               {DAYS.map((day,di)=>[
-                <div key={`day-${di}`} style={{position:"sticky",left:0,background:BG,zIndex:2,color:SLATE,fontSize:"11px",fontWeight:"600",height:"32px",display:"flex",alignItems:"center",paddingRight:"8px"}}>{day}</div>,
+                <div key={`day-${di}`} style={{position:"sticky",left:0,background:BG,zIndex:2,color:SLATE,fontSize:"11px",fontWeight:"600",height:"32px",display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center"}}>{day}</div>,
                 ...TWO_HR_SLOTS.map(slot=>{
                   const key=`${di}_${slot}`
                   const cell=grid[key]
