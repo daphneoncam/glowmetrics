@@ -1217,11 +1217,51 @@ export default function CreatorReport({
     topTippers[0] || null
 
   // Existing advanced analytics fields.
+  // Canonical missed-revenue (lib/analytics/missedRevenue.js). This read was
+  // `safeAnalytics.missedRevenueByPlatform`, a key that no longer exists —
+  // the legacy field was replaced by missedRevenue.cumulative_by_platform,
+  // so this section resolved to {} on every account and the revenue-leak
+  // card could never render.
   const missedRevenueByPlatform =
-    safeAnalytics.missedRevenueByPlatform || {}
+    safeAnalytics.missedRevenue?.cumulative_by_platform || {}
 
   const returningVsNew =
     safeAnalytics.returningVsNew || null
+
+  // ----------------------------------------------------------
+  // SQL ENGINE INSIGHTS — get_user_insights (read only)
+  // ----------------------------------------------------------
+  // This prop was passed into the report but never read, which stranded the
+  // ENTIRE insight feed the SQL engine generates on every dashboard load —
+  // including the three observational insights that 20260820_free_tier_sees_
+  // observational_insights.sql deliberately unlocked for free accounts. That
+  // migration's whole point was that a free creator with real history should
+  // see the product understand her data; with no consumer, none of them
+  // reached anyone.
+  //
+  // Nothing is recomputed or re-ranked here. The engine already applies plan
+  // scoping server-side (free receives only session_length / dropoff / trend;
+  // Pro additionally receives go_live_now / wait / platform) and already
+  // orders the array. This renders what it returns, in the order it returns.
+  const engineFeed = Array.isArray(engineInsights?.insights)
+    ? engineInsights.insights.filter(i => i?.title)
+    : []
+
+  // Counts only what is actually withheld from this caller — the engine sets
+  // it that way, so the "more with Pro" copy stays honest instead of
+  // counting insights the creator can already see above.
+  const engineLockedCount = !isPro
+    ? (engineInsights?.insights_locked_count || 0)
+    : 0
+
+  // impact -> the report's existing palette. Unknown impacts fall back to
+  // cyan rather than being dropped, so a new engine rule still renders.
+  const engineImpactColor = (impact) =>
+    impact === "critical" ? C.pink
+      : impact === "warning" ? C.gold
+        : impact === "positive" ? C.green
+          : impact === "high" ? C.purple
+            : C.cyan
 
   const topFanDependency =
     safeAnalytics.topFanDependency || null
@@ -1299,62 +1339,34 @@ export default function CreatorReport({
     insights[0] ||
     null
 
-  // Existing missed-revenue data only.
+  // The canonical engine deliberately produces NO cumulative dollar total —
+  // rate gap x off-window hours implies a counterfactual the data cannot
+  // support (91% of lifetime earnings on the regression fixture). See the
+  // long-form rationale in lib/analytics/missedRevenue.js.
+  //
+  // So this card reports what IS measured: the largest per-platform RATE GAP
+  // in $/hour between that platform's best window and its typical hour. The
+  // previous code read `missedRevenue`/`usd`/`amount` off each entry — none
+  // of which the canonical shape carries — and would have invented a dollar
+  // total even if they had existed.
   const revenueLeakEntries = Object.entries(
     missedRevenueByPlatform || {}
-  ).filter(([, value]) => {
-    const n =
-      typeof value === "object"
-        ? Number(
-            value?.missedRevenue ??
-            value?.usd ??
-            value?.amount ??
-            0
-          )
-        : Number(value || 0)
-
-    return n > 0
-  })
+  ).filter(([, v]) => Number(v?.rateGapUsdPerHour || 0) > 0)
 
   const largestRevenueLeak =
     revenueLeakEntries.length
       ? revenueLeakEntries.sort(
-          (a, b) => {
-            const av =
-              typeof a[1] === "object"
-                ? Number(
-                    a[1]?.missedRevenue ??
-                    a[1]?.usd ??
-                    a[1]?.amount ??
-                    0
-                  )
-                : Number(a[1] || 0)
-
-            const bv =
-              typeof b[1] === "object"
-                ? Number(
-                    b[1]?.missedRevenue ??
-                    b[1]?.usd ??
-                    b[1]?.amount ??
-                    0
-                  )
-                : Number(b[1] || 0)
-
-            return bv - av
-          }
+          (a, b) =>
+            Number(b[1]?.rateGapUsdPerHour || 0) -
+            Number(a[1]?.rateGapUsdPerHour || 0)
         )[0]
       : null
 
-  const largestRevenueLeakAmount =
+  const largestRevenueLeakPlatform = largestRevenueLeak?.[0] || null
+
+  const largestRevenueLeakRate =
     largestRevenueLeak
-      ? typeof largestRevenueLeak[1] === "object"
-        ? Number(
-            largestRevenueLeak[1]?.missedRevenue ??
-            largestRevenueLeak[1]?.usd ??
-            largestRevenueLeak[1]?.amount ??
-            0
-          )
-        : Number(largestRevenueLeak[1] || 0)
+      ? Number(largestRevenueLeak[1]?.rateGapUsdPerHour || 0)
       : 0
 
   // ----------------------------------------------------------
@@ -1841,16 +1853,140 @@ export default function CreatorReport({
       )}
 
       {/* ======================================================
+          WHAT YOUR HISTORY SHOWS — SQL engine insight feed
+          Rendered straight from get_user_insights. Plan scoping and
+          ordering are applied server-side; this adds no logic of its own.
+      ====================================================== */}
+
+      {engineFeed.length > 0 && (
+        <div style={{ marginBottom: 19 }}>
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 900,
+              color: C.cyan,
+              textTransform: "uppercase",
+              letterSpacing: "0.07em",
+              marginBottom: 10,
+            }}
+          >
+            What your history shows
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}
+          >
+            {engineFeed.map((insight, i) => {
+              const accent = engineImpactColor(insight.impact)
+              return (
+                <div
+                  key={`${insight.type || "insight"}-${i}`}
+                  style={{
+                    padding: "14px 16px",
+                    borderRadius: 15,
+                    background: C.card2,
+                    border: `1px solid ${C.border}`,
+                    borderLeft: `3px solid ${accent}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 13.5,
+                      fontWeight: 800,
+                      lineHeight: 1.45,
+                      color: C.white,
+                    }}
+                  >
+                    {insight.title}
+                  </div>
+
+                  {insight.body && (
+                    <div
+                      style={{
+                        marginTop: 5,
+                        fontSize: 12.5,
+                        lineHeight: 1.55,
+                        color: C.muted,
+                      }}
+                    >
+                      {insight.body}
+                    </div>
+                  )}
+
+                  {insight.action && (
+                    <div
+                      style={{
+                        marginTop: 9,
+                        fontSize: 12,
+                        lineHeight: 1.5,
+                        fontWeight: 600,
+                        color: accent,
+                      }}
+                    >
+                      → {insight.action}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {engineLockedCount > 0 && (
+            <div
+              style={{
+                marginTop: 11,
+                padding: "12px 16px",
+                borderRadius: 15,
+                background: "rgba(168,85,247,0.06)",
+                border: "1px solid rgba(168,85,247,0.18)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                flexWrap: "wrap",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                  color: C.muted,
+                }}
+              >
+                {engineLockedCount === 1
+                  ? "1 more insight is ready from this data — it tells you what to do next."
+                  : `${engineLockedCount} more insights are ready from this data — they tell you what to do next.`}
+              </div>
+
+              <ProButton
+                compact
+                source="creator_report_engine_insights"
+                onClick={() =>
+                  handleUpgrade("creator_report_engine_insights")
+                }
+              >
+                Unlock These →
+              </ProButton>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ======================================================
           REVENUE OPPORTUNITY
       ====================================================== */}
 
-      {largestRevenueLeakAmount > 0 ? (
+      {largestRevenueLeakRate > 0 ? (
         <ProPreview
           icon="⚡"
           eyebrow="Revenue opportunity"
-          title={`Potential ${fmtUsd(largestRevenueLeakAmount, 2)} opportunity detected`}
-          description={`CamCash already has platform-level revenue opportunity data in your report.`}
-          preview={`🔒 Pro can break down where that opportunity is coming from and what change is most likely to address it.`}
+          title={`Your best ${displayPlatform(largestRevenueLeakPlatform)} window earns ${fmtUsd(largestRevenueLeakRate, 2)}/hr more than your typical hour`}
+          description={`Measured as the gap between that platform's best-window median hourly rate and its overall median — not a projected total.`}
+          preview={`🔒 Pro shows which window that is, how many hours you streamed outside it, and what to change first.`}
           source="creator_report_revenue_opportunity"
           onUpgrade={() =>
             handleUpgrade(
