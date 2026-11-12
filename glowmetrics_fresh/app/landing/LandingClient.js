@@ -286,8 +286,13 @@ function LiveDemoPanel() {
   const bars = [40, 65, 45, 80, 55, 90, 70, 85, 60, 95, 75, 88]
   const demo = DEMO_STATES[stateIdx]
 
-  const now = new Date()
-  const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  const [timeStr, setTimeStr] = useState("")
+  useEffect(() => {
+    const updateTime = () => setTimeStr(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))
+    updateTime()
+    const interval = setInterval(updateTime, 60000)
+    return () => clearInterval(interval)
+  }, [])
 
   return (
     <div className="camcash-panel-shell" style={{
