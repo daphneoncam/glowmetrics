@@ -20,7 +20,7 @@ export default function PrivacyPolicy() {
             Privacy Policy
           </h1>
           <p style={{ fontSize: 15, color: "#475569" }}>
-            Last updated: May 24, 2026
+            Last updated: August 5, 2026
           </p>
         </div>
 
@@ -42,11 +42,12 @@ We do not collect passwords in plaintext, payment card information, or any perso
           },
           {
             title: "3. How We Use Your Data",
-            content: `We use your data solely to provide and improve the CamCash service:
+            content: `We use your data to provide and improve the CamCash service:
 
 • To display your earnings analytics, fan insights, and stream recommendations in your dashboard.
 • To power AI-generated coaching and insights based on your historical tip data.
 • To send you transactional emails such as welcome messages and product updates.
+• To analyze anonymized, aggregated data across all users (for example, earnings trends or platform benchmarks) to publish general insights, such as blog content or product marketing. Aggregate data is never shown in a way that could identify an individual user, and any published breakdown requires a minimum number of contributing users.
 
 We do not sell your data. We do not share your data with third parties except as required to operate the service (see Section 5).`
           },
