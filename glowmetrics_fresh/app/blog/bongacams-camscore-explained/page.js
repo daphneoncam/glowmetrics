@@ -184,7 +184,7 @@ export default function BlogPost() {
           Need a ready-to-use interaction instead of inventing a new game mid-stream? The Pretty Profitz pack includes everyday, bratty, non-nude, toy, goal, and premium dice-game formats plus a blank custom page. Use code <span style={s.etsyCode}>PRETTY70</span> for 70% off.
         </p>
         <a
-          href="https://www.etsy.com/shop/PrettyProfitz?search_query=Roll%20the%20Dice%20Game%20Pack"
+          href="https://www.etsy.com/shop/PrettyProfitz?search_query=Roll%20the%20Dice%20Game%20Pack&utm_source=camcashgrl&utm_medium=blog&utm_campaign=bongacams-camscore-explained"
           target="_blank"
           rel="noopener noreferrer sponsored"
           style={s.etsyBtn}

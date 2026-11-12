@@ -230,7 +230,7 @@ export default function DaddysGirlRoleplayScriptPack() {
           Creator-focused prompts and session-flow organization for themed adult content
         </div>
         <a
-          href="https://www.etsy.com/listing/4544543970/daddys-girl-roleplay-script-pack-adult"
+          href="https://www.etsy.com/listing/4544543970/daddys-girl-roleplay-script-pack-adult?utm_source=camcashgrl&utm_medium=blog&utm_campaign=daddys-girl-roleplay-script-pack"
           target="_blank"
           rel="noopener noreferrer"
           style={s.ctaBtn}

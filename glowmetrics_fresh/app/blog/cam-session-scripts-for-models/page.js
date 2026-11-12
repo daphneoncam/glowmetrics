@@ -167,7 +167,7 @@ export default function BlogPost() {
           Use code <span style={s.code}>PRETTY70</span> for 70% off.
         </p>
         <a
-          href="https://www.etsy.com/shop/PrettyProfitz?search_query=10%20Complete%20Cam%20Session%20Scripts"
+          href="https://www.etsy.com/shop/PrettyProfitz?search_query=10%20Complete%20Cam%20Session%20Scripts&utm_source=camcashgrl&utm_medium=blog&utm_campaign=cam-session-scripts-for-models"
           target="_blank"
           rel="noopener noreferrer sponsored"
           style={s.productBtn}

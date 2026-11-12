@@ -247,7 +247,7 @@ export default function CamModelTippingPatternDataExamples() {
         <p style={{ ...s.etsyP, marginBottom: '16px' }}>
           Use code <strong style={{ color: '#f1f5f9' }}>PRETTY70</strong> at checkout for 70% off.
         </p>
-        <a href="https://www.etsy.com/shop/prettyprofitz" style={s.etsyBtn} target="_blank" rel="noopener noreferrer">Shop the VIP Client Tracker on Etsy →</a>
+        <a href="https://www.etsy.com/shop/prettyprofitz?utm_source=camcashgrl&utm_medium=blog&utm_campaign=cam-model-tipping-pattern-data-examples" style={s.etsyBtn} target="_blank" rel="noopener noreferrer">Shop the VIP Client Tracker on Etsy →</a>
       </div>
     </ArticleLayout>
   )

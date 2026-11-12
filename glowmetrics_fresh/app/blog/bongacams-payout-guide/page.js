@@ -187,7 +187,7 @@ export default function BlogPost() {
           A weekly payout tells you what the platform owes you. The Pretty Profitz VIP Client Tracker helps you document who generated that money, their spending history, preferences, follow-ups, and re-engagement opportunities. Use code <span style={s.etsyCode}>PRETTY70</span> for 70% off.
         </p>
         <a
-          href="https://www.etsy.com/shop/PrettyProfitz?search_query=VIP%20Client%20Tracker"
+          href="https://www.etsy.com/shop/PrettyProfitz?search_query=VIP%20Client%20Tracker&utm_source=camcashgrl&utm_medium=blog&utm_campaign=bongacams-payout-guide"
           target="_blank"
           rel="noopener noreferrer sponsored"
           style={s.etsyBtn}

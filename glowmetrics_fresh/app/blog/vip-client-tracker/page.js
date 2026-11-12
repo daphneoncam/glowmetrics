@@ -393,7 +393,7 @@ export default function VIPClientTracker() {
           30-page system for organizing high-value client relationships and follow-ups
         </div>
         <a
-          href="https://www.etsy.com/listing/4541972932/cam-model-vip-client-tracker-fillable"
+          href="https://www.etsy.com/listing/4541972932/cam-model-vip-client-tracker-fillable?utm_source=camcashgrl&utm_medium=blog&utm_campaign=vip-client-tracker"
           target="_blank"
           rel="noopener noreferrer"
           style={s.ctaBtn}
@@ -463,7 +463,7 @@ export default function VIPClientTracker() {
           Want real-time client tracking without manual entry? CamCash provides automated fan intelligence, spending analysis, and relationship tracking so you can focus on streaming.
         </p>
         <a
-          href="https://www.camcashgrl.com"
+          href="https://www.camcashgrl.com?ref=blog&blog_slug=vip-client-tracker"
           target="_blank"
           rel="noopener noreferrer"
           style={{ ...s.button, ...s.freeButton }}

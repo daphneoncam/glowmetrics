@@ -204,7 +204,7 @@ export default function FindomKinkNiche() {
         <p style={{ ...s.etsyP, marginBottom: '16px' }}>
           Use code <strong style={{ color: '#f1f5f9' }}>PRETTY21</strong> at checkout for 25% off.
         </p>
-        <a href="https://www.etsy.com/shop/prettyprofitz" style={s.etsyBtn} target="_blank" rel="noopener noreferrer">Shop findom scripts on Etsy →</a>
+        <a href="https://www.etsy.com/shop/prettyprofitz?utm_source=camcashgrl&utm_medium=blog&utm_campaign=findom-kink-niche" style={s.etsyBtn} target="_blank" rel="noopener noreferrer">Shop findom scripts on Etsy →</a>
       </div>
 
       <h2 style={s.h2}>Boundaries Are the Business Model</h2>

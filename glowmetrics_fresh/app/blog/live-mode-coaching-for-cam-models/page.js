@@ -201,7 +201,7 @@ export default function Page() {
         <h2>Getting started</h2>
         <p>Live coaching runs through the CamCashGrl extension, the same tool that tracks your earnings automatically:</p>
         <ul>
-          <li>Create your free account at <a href="https://www.camcashgrl.com">camcashgrl.com</a>.</li>
+          <li>Create your free account at <a href="https://www.camcashgrl.com?ref=blog&blog_slug=live-mode-coaching-for-cam-models">camcashgrl.com</a>.</li>
           <li>Add the CamCashGrl extension and sign in.</li>
           <li>Go live. Cues appear on your side the moment the room needs them.</li>
         </ul>

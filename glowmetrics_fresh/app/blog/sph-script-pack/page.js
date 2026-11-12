@@ -229,7 +229,7 @@ export default function SPHScriptPack() {
           Creator-focused prompts and session-flow organization for themed adult content
         </div>
         <a
-          href="https://www.etsy.com/listing/4541995234/playful-sph-cam-script-pack-adult"
+          href="https://www.etsy.com/listing/4541995234/playful-sph-cam-script-pack-adult?utm_source=camcashgrl&utm_medium=blog&utm_campaign=sph-script-pack"
           target="_blank"
           rel="noopener noreferrer"
           style={s.ctaBtn}

@@ -193,7 +193,7 @@ export default function Page() {
 
         <h2>Getting started</h2>
         <ul>
-          <li>Create your free account at <a href="https://www.camcashgrl.com">camcashgrl.com</a>.</li>
+          <li>Create your free account at <a href="https://www.camcashgrl.com?ref=blog&blog_slug=cam-model-fan-crm">camcashgrl.com</a>.</li>
           <li>Track tips automatically with the CamCashGrl extension so profiles build themselves as you stream.</li>
           <li>Backfill earlier fans with a one-time CSV import if you want their full history.</li>
           <li>Open your top tippers view, sort by value, and start treating your VIPs like VIPs.</li>
@@ -216,7 +216,7 @@ export default function Page() {
           <p style={{ fontSize: '14px', color: '#94a3b8', margin: '0 0 16px', lineHeight: 1.6 }}>
             Use code <strong style={{ color: '#f1f5f9' }}>PRETTY70</strong> at checkout for 70% off.
           </p>
-          <a href="https://www.etsy.com/shop/prettyprofitz" style={{ display: 'inline-block', background: 'linear-gradient(90deg, #ec4899, #f59e0b)', color: '#0f172a', padding: '10px 20px', borderRadius: '10px', fontWeight: 700, fontSize: '14px', textDecoration: 'none' }} target="_blank" rel="noopener noreferrer">Shop the VIP Client Tracker on Etsy →</a>
+          <a href="https://www.etsy.com/shop/prettyprofitz?utm_source=camcashgrl&utm_medium=blog&utm_campaign=cam-model-fan-crm" style={{ display: 'inline-block', background: 'linear-gradient(90deg, #ec4899, #f59e0b)', color: '#0f172a', padding: '10px 20px', borderRadius: '10px', fontWeight: 700, fontSize: '14px', textDecoration: 'none' }} target="_blank" rel="noopener noreferrer">Shop the VIP Client Tracker on Etsy →</a>
         </div>
       </BlogLayout>
     </>

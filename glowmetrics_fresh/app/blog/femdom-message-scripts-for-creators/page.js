@@ -166,7 +166,7 @@ export default function BlogPost() {
           Use code <span style={s.code}>PRETTY70</span> for 70% off.
         </p>
         <a
-          href="https://www.etsy.com/shop/PrettyProfitz?search_query=100%20Femdom%20Responses"
+          href="https://www.etsy.com/shop/PrettyProfitz?search_query=100%20Femdom%20Responses&utm_source=camcashgrl&utm_medium=blog&utm_campaign=femdom-message-scripts-for-creators"
           target="_blank"
           rel="noopener noreferrer sponsored"
           style={s.productBtn}

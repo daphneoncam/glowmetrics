@@ -234,7 +234,7 @@ export default function RollTheDiceGamePack() {
           Game ideas, pricing guides, and tracking for organizing tip games in your cam room
         </div>
         <a
-          href="https://www.etsy.com/listing/4541149618/cam-model-roll-the-dice-game-pack"
+          href="https://www.etsy.com/listing/4541149618/cam-model-roll-the-dice-game-pack?utm_source=camcashgrl&utm_medium=blog&utm_campaign=roll-the-dice-game-pack"
           target="_blank"
           rel="noopener noreferrer"
           style={s.ctaBtn}

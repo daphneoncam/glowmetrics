@@ -233,7 +233,7 @@ export default function Page() {
         <h2>How to set it up</h2>
         <p>Getting from spreadsheets to automatic is a short list:</p>
         <ul>
-          <li>Create your free CamCash account at <a href="https://www.camcashgrl.com">camcashgrl.com</a>.</li>
+          <li>Create your free CamCash account at <a href="https://www.camcashgrl.com?ref=blog&blog_slug=how-to-track-cam-tips-automatically">camcashgrl.com</a>.</li>
           <li>Add the CamCashGrl extension to your browser and sign in.</li>
           <li>Go live as you normally would. Tips start logging automatically.</li>
           <li>Open your dashboard to watch your top tippers, peak hours, and session totals fill in.</li>

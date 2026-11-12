@@ -180,7 +180,7 @@ export default function BlogPost() {
           The Pretty Profitz PDF includes everyday, bratty, non-nude, toy, goal, and premium game formats plus a blank custom page—ready to reference while you plan your next show. Use code <span style={s.etsyCode}>PRETTY70</span> for 70% off.
         </p>
         <a
-          href="https://www.etsy.com/shop/PrettyProfitz?search_query=Roll%20the%20Dice%20Game%20Pack"
+          href="https://www.etsy.com/shop/PrettyProfitz?search_query=Roll%20the%20Dice%20Game%20Pack&utm_source=camcashgrl&utm_medium=blog&utm_campaign=cam-room-dice-game-ideas"
           target="_blank"
           rel="noopener noreferrer sponsored"
           style={s.etsyBtn}

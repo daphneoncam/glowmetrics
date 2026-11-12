@@ -277,11 +277,25 @@ const s = {
 };
 
 export default function FreeMyFreeCamsEarningsTrackerPage() {
+  const schema = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: 'Free MyFreeCams Earnings Tracker for Cam Models',
+    description: 'Download a free MyFreeCams earnings tracker PDF for cam models to track sessions, tokens, tips, hourly earnings, goals, and performance.',
+    url: 'https://www.camcashgrl.com/blog/free-myfreecams-earnings-tracker',
+    datePublished: '2026-06-23',
+    dateModified: '2026-09-23',
+    author: { '@type': 'Person', name: 'Daphne Dawson', jobTitle: 'Cam Model' },
+    publisher: { '@type': 'Organization', name: 'CamCashGrl', url: 'https://www.camcashgrl.com' },
+    mainEntityOfPage: { '@type': 'WebPage', '@id': 'https://www.camcashgrl.com/blog/free-myfreecams-earnings-tracker' },
+  };
+
   return (
     <ArticleLayout
       title="Free MyFreeCams Earnings Tracker for Cam Models"
       description="Download a free MyFreeCams earnings tracker PDF to track sessions, tokens, tips, hourly earnings, goals, and performance."
     >
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />
       <article>
         <header style={s.hero}>
           <div style={s.eyebrow}>Free Creator Resource • MyFreeCams</div>
@@ -312,7 +326,7 @@ export default function FreeMyFreeCamsEarningsTrackerPage() {
 
           <div style={{ margin: '28px auto 8px', maxWidth: '620px', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)' }}>
             <img
-              src="/blog-images/mfc-mini-tracker-cover.png"
+              src="/blog-images/Mini_mfctracker_daileyearnings.png"
               alt="Free MyFreeCams Mini Tracker PDF cover for cam models by Pretty Profitz"
               width={1055}
               height={1491}
@@ -624,7 +638,7 @@ export default function FreeMyFreeCamsEarningsTrackerPage() {
             Want real-time earnings tracking without manual entry? CamCash provides automated fan intelligence, token tracking, and performance analytics so you can focus on streaming.
           </p>
           <a
-            href="https://www.camcashgrl.com"
+            href="https://www.camcashgrl.com?ref=blog&blog_slug=free-myfreecams-earnings-tracker"
             target="_blank"
             rel="noopener noreferrer"
             style={{ ...s.button, ...s.freeButton }}

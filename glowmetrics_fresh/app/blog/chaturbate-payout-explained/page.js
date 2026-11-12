@@ -339,7 +339,7 @@ export default function ChaturbatePayoutExplained() {
           The <strong style={{ color: '#e2e8f0' }}>VIP Client Tracker for Cam Models</strong> helps you track spending history, preferences, follow-ups, session notes, and re-engagement opportunities in one printable and fillable workbook. Use promo code <span style={s.etsyCode}>PRETTY70</span> for 70% off.
         </p>
         <a
-          href="https://www.etsy.com/shop/PrettyProfitz?search_query=VIP%20Client%20Tracker"
+          href="https://www.etsy.com/shop/PrettyProfitz?search_query=VIP%20Client%20Tracker&utm_source=camcashgrl&utm_medium=blog&utm_campaign=chaturbate-payout-explained"
           target="_blank"
           rel="noopener noreferrer sponsored"
           style={s.etsyBtn}

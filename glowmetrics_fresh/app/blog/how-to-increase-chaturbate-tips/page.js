@@ -155,7 +155,7 @@ export default function HowToIncreaseChaturbateTips() {
         <p style={s.etsyP}>
           Use code <strong style={{ color: '#f1f5f9' }}>PRETTY21</strong> at checkout for 25% off.
         </p>
-        <a href="https://www.etsy.com/shop/prettyprofitz" style={s.etsyBtn} target="_blank" rel="noopener noreferrer">Shop tip menus &amp; wheel templates on Etsy →</a>
+        <a href="https://www.etsy.com/shop/prettyprofitz?utm_source=camcashgrl&utm_medium=blog&utm_campaign=how-to-increase-chaturbate-tips" style={s.etsyBtn} target="_blank" rel="noopener noreferrer">Shop tip menus &amp; wheel templates on Etsy →</a>
       </div>
 
       <h2 style={s.h2}>3. Run Goal Shows Correctly</h2>

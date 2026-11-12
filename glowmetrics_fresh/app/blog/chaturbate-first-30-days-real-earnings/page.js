@@ -371,7 +371,7 @@ export default function First30DaysPost() {
           your best earning times, and a data confidence score that tells you how reliable your insights
           are so far. Takes 60 seconds. Free to start, no credit card needed.
         </div>
-        <a href="https://www.camcashgrl.com" style={s.finalCtaBtn}>See My First 30 Days →</a>
+        <a href="https://www.camcashgrl.com?ref=blog&blog_slug=chaturbate-first-30-days-real-earnings" style={s.finalCtaBtn}>See My First 30 Days →</a>
       </div>
 
       <div style={s.tools}>

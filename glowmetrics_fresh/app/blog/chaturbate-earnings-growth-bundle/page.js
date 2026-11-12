@@ -254,7 +254,7 @@ export default function ChaturbateEarningsGrowthBundle() {
           Complete workbook with tracking, planning, and testing tools for Chaturbate cam models
         </div>
         <a
-          href="https://www.etsy.com/listing/4545112282/chaturbate-earnings-tracker-bundle-44"
+          href="https://www.etsy.com/listing/4545112282/chaturbate-earnings-tracker-bundle-44?utm_source=camcashgrl&utm_medium=blog&utm_campaign=chaturbate-earnings-growth-bundle"
           target="_blank"
           rel="noopener noreferrer"
           style={s.ctaBtn}

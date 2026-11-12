@@ -128,7 +128,7 @@ export default function BlogPost() {
           <li style={s.li}>Reusable across different show themes</li>
         </ul>
         <p style={s.productText}>Use code <span style={s.code}>PRETTY70</span> for 70% off.</p>
-        <a href="https://www.etsy.com/listing/4538921362/editable-spin-the-wheel-canva-template" target="_blank" rel="noopener noreferrer sponsored" style={s.productBtn}>Get the Spin-the-Wheel Templates →</a>
+        <a href="https://www.etsy.com/listing/4538921362/editable-spin-the-wheel-canva-template?utm_source=camcashgrl&utm_medium=blog&utm_campaign=spin-the-wheel-cam-game" target="_blank" rel="noopener noreferrer sponsored" style={s.productBtn}>Get the Spin-the-Wheel Templates →</a>
       </div>
 
       <h2 style={s.h2}>Eight Spin-the-Wheel Show Formats</h2>

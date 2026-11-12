@@ -247,7 +247,7 @@ export default function SissyTrainingObedienceBundle() {
           Complete workbook with agreements, planning, tracking, and session organization
         </div>
         <a
-          href="https://www.etsy.com/listing/4537118216/sissy-punishment-guide-53pg-training"
+          href="https://www.etsy.com/listing/4537118216/sissy-punishment-guide-53pg-training?utm_source=camcashgrl&utm_medium=blog&utm_campaign=sissy-training-obedience-bundle"
           target="_blank"
           rel="noopener noreferrer"
           style={s.ctaBtn}

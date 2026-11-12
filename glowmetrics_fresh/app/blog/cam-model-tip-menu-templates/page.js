@@ -248,7 +248,7 @@ export default function CamModelTipMenuTemplates() {
           320 ideas, 20 editable templates, and performance tracking for your cam room
         </div>
         <a
-          href="https://www.etsy.com/listing/4538766419/cam-model-tip-menu-templates-320-ideas"
+          href="https://www.etsy.com/listing/4538766419/cam-model-tip-menu-templates-320-ideas?utm_source=camcashgrl&utm_medium=blog&utm_campaign=cam-model-tip-menu-templates"
           target="_blank"
           rel="noopener noreferrer"
           style={s.ctaBtn}

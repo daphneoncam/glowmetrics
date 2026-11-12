@@ -202,7 +202,7 @@ export default function Page() {
           <p style={{ fontSize: '14px', color: '#94a3b8', margin: '0 0 16px', lineHeight: 1.6 }}>
             Use code <strong style={{ color: '#f1f5f9' }}>PRETTY21</strong> at checkout for 25% off.
           </p>
-          <a href="https://www.etsy.com/shop/prettyprofitz" style={{ display: 'inline-block', background: 'linear-gradient(90deg, #ec4899, #f59e0b)', color: '#0f172a', padding: '10px 20px', borderRadius: '10px', fontWeight: 700, fontSize: '14px', textDecoration: 'none' }} target="_blank" rel="noopener noreferrer">Shop cam room title bundles on Etsy →</a>
+          <a href="https://www.etsy.com/shop/prettyprofitz?utm_source=camcashgrl&utm_medium=blog&utm_campaign=viral-cam-room-titles" style={{ display: 'inline-block', background: 'linear-gradient(90deg, #ec4899, #f59e0b)', color: '#0f172a', padding: '10px 20px', borderRadius: '10px', fontWeight: 700, fontSize: '14px', textDecoration: 'none' }} target="_blank" rel="noopener noreferrer">Shop cam room title bundles on Etsy →</a>
         </div>
 
         <h2>Beating creative burnout</h2>
@@ -219,7 +219,7 @@ export default function Page() {
 
         <h2>Getting started</h2>
         <ul>
-          <li>Create your free account at <a href="https://www.camcashgrl.com">camcashgrl.com</a>.</li>
+          <li>Create your free account at <a href="https://www.camcashgrl.com?ref=blog&blog_slug=viral-cam-room-titles">camcashgrl.com</a>.</li>
           <li>Open the room title generator and enter your niche, mood, and goal.</li>
           <li>Grab a title built on the viral formula and drop it into your stream.</li>
           <li>Watch which titles bring in the biggest rooms, then lean into what works.</li>

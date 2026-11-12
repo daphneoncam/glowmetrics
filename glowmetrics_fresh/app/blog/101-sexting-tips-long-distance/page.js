@@ -252,7 +252,7 @@ export default function SextingTipsLongDistance() {
           61-page guide with 101 ideas, planning pages, and privacy guidance
         </div>
         <a
-          href="https://www.etsy.com/listing/4537171402/101-sexting-tips-for-long-distance"
+          href="https://www.etsy.com/listing/4537171402/101-sexting-tips-for-long-distance?utm_source=camcashgrl&utm_medium=blog&utm_campaign=101-sexting-tips-long-distance"
           target="_blank"
           rel="noopener noreferrer"
           style={s.ctaBtn}

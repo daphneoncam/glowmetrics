@@ -379,7 +379,7 @@ export default function BestMonthPost() {
           CamCash shows you exactly this — from your first import.
           Takes 60 seconds. Free to start.
         </div>
-        <a href="https://www.camcashgrl.com" style={s.finalCtaBtn}>See What My Numbers Look Like →</a>
+        <a href="https://www.camcashgrl.com?ref=blog&blog_slug=chaturbate-best-month-real-numbers" style={s.finalCtaBtn}>See What My Numbers Look Like →</a>
       </div>
 
       <div style={s.tools}>

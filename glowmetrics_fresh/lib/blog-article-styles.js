@@ -49,8 +49,14 @@ export const articleSchema = ({ title, description, slug, faqs } = {}) => ({
 export const articleMeta = ({ title, description, slug } = {}) => ({
   title: title,
   description: description,
+  alternates: {
+    canonical: slug ? `https://www.camcashgrl.com/blog/${slug}` : undefined,
+  },
   openGraph: {
     type: 'article',
+    title: title,
+    description: description,
     url: slug ? `https://www.camcashgrl.com/blog/${slug}` : undefined,
+    siteName: 'CamCashGrl',
   },
 })
