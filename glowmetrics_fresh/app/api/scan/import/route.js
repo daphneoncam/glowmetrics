@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { PLATFORM_TOKEN_RATES } from '@/lib/constants';
+import { validateImportRows, describeProblems } from '@/lib/importValidation';
 
 // See app/api/scan/preview/route.js for why this map exists — lib/constants.js
 // keys rates by capitalized platform name, the scan payload uses lowercase ids.
@@ -79,6 +80,21 @@ export async function POST(request) {
       tip_note: '',
     };
   });
+
+  // All-or-nothing validation BEFORE any write (same rules as /api/upload):
+  // dates must be full and plausible, tokens whole numbers >= 1. (usd is
+  // recomputed from tokens above, so it cannot be a misread balance.)
+  const validation = validateImportRows(tipsForRpc.map((r) => ({ ...r, source_date: r.date_time })));
+  if (!validation.ok) {
+    return NextResponse.json({
+      error: describeProblems(validation),
+      code: 'import_validation_failed',
+      problems: validation.problems,
+      problemCount: validation.problemCount,
+      rowsChecked: validation.rowsChecked,
+      truncated: validation.truncated,
+    }, { status: 422 });
+  }
 
   // Writes go through the service-role client, same as app/api/live/tips/route.js —
   // insert_tips_dedup is SECURITY DEFINER and keys off the user_id embedded in

@@ -1,10 +1,12 @@
 import { summarizeOnboarding } from '../../../lib/onboardingSummary'
 import { NextResponse } from 'next/server'
+import { randomUUID } from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import { parseCSV, detectPlatform, detectDateOrder, computeSnapshotStats } from '../../../lib/analytics'
 import { platformLimitMessage } from '../../../lib/planLimits'
 import { canonicalPlatform, PLATFORM_TOKEN_RATES } from '../../../lib/constants'
 import { importTimeZone, toStoredInstant } from '../../../lib/creatorTimezone'
+import { validateImportRows, describeProblems } from '../../../lib/importValidation'
 
 const KNOWN_PLATFORMS = Object.keys(PLATFORM_TOKEN_RATES)
 import { analyzeFormat } from '../../../lib/parseTracking'
@@ -139,7 +141,9 @@ async function handleUpload(req) {
   // The parser keeps its content-detected platform when it has one (same
   // parse as before); otherwise it uses the resolved platform so token→USD
   // uses that platform's rate rather than the default.
-  const parsed = parseCSV(raw, contentPlatform !== 'Unknown' ? contentPlatform : textDetectedPlatform, { dateOrder })
+  // strictDates: a row with no date is flagged (date_missing) and rejected by
+  // the validation below — it is never stamped with the current time (#733).
+  const parsed = parseCSV(raw, contentPlatform !== 'Unknown' ? contentPlatform : textDetectedPlatform, { dateOrder, strictDates: true })
 
   // Log parse attempt to track platform support and format issues
   const formatAnalysis = analyzeFormat(raw)
@@ -186,9 +190,15 @@ async function handleUpload(req) {
       // paid_sessions below instead of tips.
       is_paid_session: row.is_paid_session === true,
       session_type:    row.session_type || null,
+      // Kept only for validation (the RPCs ignore extra keys): the date text as
+      // exported, so "7" or "Apr 1" can be told apart from a real date.
+      source_date:  row.dateRaw || row.date_time || '',
+      date_missing: row.date_missing === true,
     }
+  // A row with an unreadable date is NOT dropped here: it is kept so the
+  // validation below can reject the import and say which row is wrong, instead
+  // of the row silently vanishing.
   }).filter(r =>
-    r.date_time &&
     r.username !== 'Unknown' &&
     (r.tokens > 0 || r.usd > 0)
   )
@@ -210,6 +220,39 @@ async function handleUpload(req) {
   // A per-row platform column with an unrecognised value falls back to the
   // file's platform instead of being stored as a new, unknown platform.
   rows.forEach(r => { if (!KNOWN_PLATFORMS.includes(r.platform)) r.platform = detectedPlatform })
+
+  // ── VALIDATE BEFORE ANY WRITE (all-or-nothing) ──────────────────────────
+  // Nothing below this point runs if a single row is wrong: no tips, no paid
+  // sessions. A corrupt file used to be saved and still logged "complete"
+  // (#733: a running token balance saved as USD, bare numbers read as dates in
+  // 2000/2001/0001). The rejection is logged as 'rejected' so it leaves a trace.
+  const validation = validateImportRows(rows)
+  if (!validation.ok) {
+    try {
+      await supabase.from('csv_uploads').insert({
+        user_id:        user.id,
+        upload_ref:     randomUUID(),
+        platform:       detectedPlatform,
+        file_name:      file.name || 'upload.csv',
+        total_rows:     rows.length,
+        inserted_rows:  0,
+        skipped_rows:   0,
+        total_usd:      0,
+        total_tokens:   0,
+        status:         'rejected',
+      })
+    } catch (logErr) {
+      console.error('[UPLOAD] Failed to log rejected upload:', logErr.message)
+    }
+    return NextResponse.json({
+      error:        describeProblems(validation),
+      code:         'import_validation_failed',
+      problems:     validation.problems,
+      problemCount: validation.problemCount,
+      rowsChecked:  validation.rowsChecked,
+      truncated:    validation.truncated,
+    }, { status: 422 })
+  }
 
   // ── SPLIT TIPS FROM PAID CHAT / SPY-MODE SESSIONS ───────────────────────
   // Paid-chat/spy-mode rows (flagged above) never go into tips — they go to
@@ -272,35 +315,52 @@ async function handleUpload(req) {
   // ── LOG TO csv_uploads ─────────────────────────────────────────────────
   // Shared by the success path below and the platform-limit block path, so a
   // blocked attempt still leaves an audit row instead of vanishing entirely.
+  // The csv_uploads row is created BEFORE the tips are saved and the tips are
+  // tagged with its id (tips.upload_id), so every saved row can be traced back
+  // to the import that created it (before, upload_id was always NULL). The row
+  // starts as 'processing' and is finished with its real status afterwards.
+  const uploadId = randomUUID()
+  let uploadRecordCreated = false
+  const uploadRecordFields = () => {
+    // Build sorted array of unique "YYYY-MM" strings covered
+    const monthsSet = new Set(
+      summaryDates.map(d => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`)
+    )
+    return {
+      user_id:        user.id,
+      upload_ref:     randomUUID(),
+      platform:       detectedPlatform,
+      file_name:      file.name || 'upload.csv',
+      date_from:      summaryDateFrom,
+      date_to:        summaryDateTo,
+      months_covered: [...monthsSet].sort(),
+      total_rows:     tipRows.length,
+      total_usd:      summaryTotalUsd,
+      total_tokens:   summaryTotalTokens,
+    }
+  }
+  const startUploadRecord = async () => {
+    try {
+      const { error } = await supabase.from('csv_uploads').insert({
+        id: uploadId, ...uploadRecordFields(), inserted_rows: 0, skipped_rows: 0, status: 'processing',
+      })
+      if (error) console.error('[UPLOAD] Failed to create csv_upload record:', error.message)
+      else uploadRecordCreated = true
+    } catch (logErr) {
+      console.error('[UPLOAD] Failed to create csv_upload record:', logErr.message)
+    }
+  }
   const logCsvUpload = async (status) => {
     try {
-      // Build sorted array of unique "YYYY-MM" strings covered
-      const monthsSet = new Set(
-        summaryDates.map(d => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`)
-      )
-      const monthsCovered = [...monthsSet].sort()
-
-      const { error: logInsertError } = await supabase.from('csv_uploads').insert({
-        user_id:        user.id,
-        upload_ref:     crypto.randomUUID(),
-        platform:       detectedPlatform,
-        file_name:      file.name || 'upload.csv',
-        date_from:      summaryDateFrom,
-        date_to:        summaryDateTo,
-        months_covered: monthsCovered,
-        total_rows:     tipRows.length,
-        inserted_rows:  inserted,
-        skipped_rows:   skipped,
-        total_usd:      summaryTotalUsd,
-        total_tokens:   summaryTotalTokens,
-        status,
-      })
-      // supabase-js reports insert failures in { error } rather than throwing,
-      // so without this check a failed audit row vanished silently (#672).
-      if (logInsertError) {
-        console.error('[UPLOAD] Failed to log csv_upload record:', logInsertError.message)
+      // supabase-js reports failures in { error } rather than throwing, so
+      // without this check a failed audit row vanished silently (#672).
+      const { error: logError } = uploadRecordCreated
+        ? await supabase.from('csv_uploads').update({ inserted_rows: inserted, skipped_rows: skipped, status }).eq('id', uploadId)
+        : await supabase.from('csv_uploads').insert({ ...uploadRecordFields(), inserted_rows: inserted, skipped_rows: skipped, status })
+      if (logError) {
+        console.error('[UPLOAD] Failed to log csv_upload record:', logError.message)
       } else {
-        console.log(`[UPLOAD] Logged csv_upload record (${status}) for ${detectedPlatform} — ${monthsCovered.length} months covered`)
+        console.log(`[UPLOAD] Logged csv_upload record (${status}) for ${detectedPlatform}`)
       }
     } catch (logErr) {
       // Non-fatal — don't fail the whole upload if logging fails
@@ -313,13 +373,15 @@ async function handleUpload(req) {
   let skipped  = 0
   const errors = []
   const totalBatches = Math.ceil(tipRows.length / BATCH_SIZE)
+  await startUploadRecord()
 
   for (let i = 0; i < tipRows.length; i += BATCH_SIZE) {
     const batch    = tipRows.slice(i, i + BATCH_SIZE)
     const batchNum = Math.floor(i / BATCH_SIZE) + 1
 
     const { data, error } = await supabase.rpc('insert_tips_dedup', {
-      tips: batch
+      tips: batch,
+      p_upload_id: uploadRecordCreated ? uploadId : null,
     })
 
     // insert_tips_dedup catches its own exceptions and returns them inside the
@@ -352,26 +414,9 @@ async function handleUpload(req) {
     console.log(`[UPLOAD] Batch ${batchNum}/${totalBatches} — inserted: ${data?.inserted}, skipped: ${data?.skipped}`)
   }
 
-  // ── VALIDATE IMPORTED TIPS ──────────────────────────────────────────────
-  // After all batches complete, validate the newly inserted tips for data
-  // quality issues (future dates, unrealistic amounts, missing usernames, etc.)
-  if (inserted > 0) {
-    try {
-      const { data: validationResult, error: validationError } = await supabase.rpc(
-        'validate_imported_tips',
-        { p_user_id: user.id }
-      )
-      if (validationError) {
-        console.warn('[UPLOAD] Data validation RPC failed:', validationError.message)
-      } else if (validationResult?.violation_count > 0) {
-        console.log(`[UPLOAD] Validation found ${validationResult.violation_count} issues:`, validationResult.violations)
-      }
-    } catch (validationErr) {
-      console.warn('[UPLOAD] Data validation error:', validationErr.message)
-    }
-  }
-
-  await logCsvUpload(errors.length > 0 ? 'partial' : 'complete')
+  // (The old post-insert `validate_imported_tips` call was removed: that
+  // function and its log table do not exist in production, so it never ran.
+  // Validation now happens BEFORE any write — see "VALIDATE BEFORE ANY WRITE".)
 
   // ── BATCH INSERT PAID CHAT / SPY-MODE SESSIONS ──────────────────────────
   // Same RPC the onboarding paste flow's /api/upload-paid-sessions uses, so
@@ -402,9 +447,10 @@ async function handleUpload(req) {
       console.error(`[UPLOAD] Paid-session batch ${batchNum}/${paidTotalBatches} error:`, error.message)
 
       if (error.message?.includes('PLATFORM_LIMIT_REACHED')) {
-        // Tips (if any) already inserted and logged above — this only blocks
-        // the paid-session half, same as onboarding's two independent
-        // requests would behave if the paid-sessions call failed on its own.
+        // Tips (if any) already inserted above — this only blocks the
+        // paid-session half, same as onboarding's two independent requests
+        // would behave if the paid-sessions call failed on its own.
+        await logCsvUpload('partial')
         return NextResponse.json({
           error: platformLimitMessage(),
           code: 'platform_limit_reached',
@@ -421,6 +467,9 @@ async function handleUpload(req) {
 
     console.log(`[UPLOAD] Paid-session batch ${batchNum}/${paidTotalBatches} — inserted: ${data?.inserted}, skipped: ${data?.skipped}`)
   }
+
+  // 'complete' only if EVERY tip batch and every private-earnings batch saved.
+  await logCsvUpload(errors.length > 0 || paidErrors.length > 0 ? 'partial' : 'complete')
 
   // ── RESPONSE ───────────────────────────────────────────────────────────
   const response = {

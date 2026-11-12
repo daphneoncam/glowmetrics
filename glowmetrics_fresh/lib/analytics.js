@@ -239,13 +239,20 @@ export function detectDateOrder(text) {
 // Date order for the parse in progress (parseCSV is synchronous, so this is
 // never shared between two parses). null keeps the previous behaviour.
 let activeDateOrder = null
+// strictDates (opt-in, used by the import routes): a row with NO date is
+// returned flagged `date_missing` instead of being stamped with the current
+// time, so the import validator can reject it. Off by default — the dashboard
+// parse is unchanged.
+let activeStrictDates = false
 
-export function parseCSV(text, platform = null, { dateOrder = null } = {}) {
+export function parseCSV(text, platform = null, { dateOrder = null, strictDates = false } = {}) {
   activeDateOrder = dateOrder === 'DMY' || dateOrder === 'MDY' ? dateOrder : null
+  activeStrictDates = strictDates === true
   try {
     return parseCSVInner(text, platform)
   } finally {
     activeDateOrder = null
+    activeStrictDates = false
   }
 }
 
@@ -573,9 +580,11 @@ function parseWithHeaders(lines, platform, delimiter = ',') {
     if (tokens <= 0 && usd <= 0) continue
 
     const rawDate = row.date_time || row.date || row.timestamp || ''
-    const dateRaw = (platform === 'Chaturbate' ? chaturbateTimestamp(rawDate) : null) || normalizeDate(rawDate) || new Date().toISOString()
+    const readDate = (platform === 'Chaturbate' ? chaturbateTimestamp(rawDate) : null) || normalizeDate(rawDate)
+    const dateMissing = activeStrictDates && !readDate
+    const dateRaw = readDate || (activeStrictDates ? '' : new Date().toISOString())
     const parsedDate = new Date(dateRaw)
-    if (isNaN(parsedDate.getTime())) continue
+    if (!dateMissing && isNaN(parsedDate.getTime())) continue
 
     const rowPlatform = row.platform
       ? (row.platform.toLowerCase().includes('bonga') ? 'BongaCams'
@@ -603,6 +612,7 @@ function parseWithHeaders(lines, platform, delimiter = ',') {
       // parseCSV() result without re-deriving the classification themselves.
       // Applies to: BongaCams paid chat types, Chaturbate private shows, MyFreeCams private sessions
       ...(isPaidSession ? { is_paid_session: true, session_type: sessionTypeValue } : {}),
+      ...(dateMissing ? { date_missing: true } : {}),
     })
   }
   return results

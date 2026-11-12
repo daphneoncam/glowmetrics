@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { validateImportRows, describeProblems } from '../../../../lib/importValidation'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -82,6 +83,31 @@ export async function POST(request) {
       usd: parseFloat(parseFloat(r.value_in_usd || 0).toFixed(2)),
       tip_note: r.tip_note || null,
     }))
+
+    // All-or-nothing validation BEFORE any write (same rules as /api/upload):
+    // nothing is saved and the sync cursor does not advance if a row is wrong.
+    const validation = validateImportRows(rows)
+    if (!validation.ok) {
+      await supabase.from('sync_jobs').insert({
+        user_id: userId,
+        platform: 'Chaturbate',
+        status: 'failed',
+        mode: 'stats_api',
+        records_inserted: 0,
+        records_skipped: 0,
+        error_message: `Validation failed: ${validation.problemCount} invalid row(s); nothing was saved`,
+        started_at: startedAt,
+        completed_at: new Date().toISOString()
+      })
+      return NextResponse.json({
+        error: describeProblems(validation),
+        code: 'import_validation_failed',
+        problems: validation.problems,
+        problemCount: validation.problemCount,
+        rowsChecked: validation.rowsChecked,
+        truncated: validation.truncated,
+      }, { status: 422 })
+    }
 
     // Use SECURITY DEFINER RPC — bypasses RLS, handles dedup
     const { data: rpcResult, error: rpcErr } = await supabase.rpc('insert_tips_dedup', {
