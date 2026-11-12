@@ -64,3 +64,8 @@ export const WHALE_LIFETIME_TOKEN_THRESHOLD = 500
 // best or most profitable one. Kept here rather than as a scattered string
 // literal so every consumer excludes the same value.
 export const UNDETECTED_PLATFORM = 'Unknown'
+
+// Canonical Creator Pro price label. The onboarding trial card and the
+// pricing page must never retype this — a price that disagrees with Stripe
+// in one place is worse than no price at all.
+export const PRO_PRICE_MONTHLY_LABEL = '$19.99/mo'
