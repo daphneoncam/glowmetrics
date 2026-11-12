@@ -492,7 +492,7 @@
 .pulseBadge_live .pulseBadgeValue { color: #34E3B0; font-size: 15px; letter-spacing: .08em; }
 .pulseBadge_live { border-color: rgba(16,185,129,.35); }
 .pulseLiveDot { width: 8px; height: 8px; border-radius: 50%; background: #10B981; box-shadow: 0 0 10px #10B981; }
-.pulseStats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pulseStats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .pulseStat { min-width: 0; padding: 0 14px; border-left: 1px solid rgba(208,187,244,.16); }
 .pulseStat:first-child { padding-left: 0; border-left: 0; }
 .pulseStatValue { color: #fff; font-size: 24px; font-weight: 800; line-height: 1.15; white-space: nowrap; }

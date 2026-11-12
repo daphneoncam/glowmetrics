@@ -14,12 +14,16 @@
 // when one exists, and the session's own Earned / Tips / Unique Tippers.
 
 import React from "react"
-import { platformDisplayName } from "../../lib/constants"
+import { canonicalPlatform, PLATFORM_TOKEN_RATES } from "../../lib/constants"
 import { fmtUsd, fmtDuration } from "./LatestShows"
 import L from "./SessionsLuxury.module.css"
 
 const cx = (...a) => a.filter(Boolean).join(" ")
-const pName = (p) => platformDisplayName(p) || p
+// Known platforms only. A missing or unrecognized stored value (e.g. "unknown")
+// reads "Platform not recorded"; the raw stored string is never shown.
+const KNOWN_PLATFORMS = Object.keys(PLATFORM_TOKEN_RATES)
+const pName = (p) => { const c = canonicalPlatform(p); return KNOWN_PLATFORMS.includes(c) ? c : "Platform not recorded" }
+const t = (e) => new Date(e.startTime).getTime()
 const day = (iso, tz) => new Date(iso).toLocaleString([], { timeZone: tz, weekday: "short", month: "short", day: "numeric" })
 const unit = (e, n) => e.type === "private" ? (n === 1 ? "charge" : "charges") : (n === 1 ? "tip" : "tips")
 const typeWord = (e) => e.type === "live" ? "Live show" : e.type === "free_chat" ? "free chat session" : e.type === "private" ? "private session" : "imported session"
@@ -27,16 +31,36 @@ const noun = (e) => e.type === "live" ? "show" : "session"
 // Source tag beside the date (live shows are identified by "Last show").
 const SOURCE = { free_chat: "Free chat", imported: "Imported", private: "Private" }
 
-// Pure: pick the observation (exported for tests).
+// Shows and reconstructed sessions only. Standalone private charges are never
+// treated as a show or session.
+const SESSION_TYPES = new Set(["live", "free_chat", "imported"])
+
+// Pure: pick the observation (exported for tests). Priority, approved:
+//   1. a Live show running now
+//   2. a newly finished persisted Live show
+//   3. the latest meaningful session with a valid canonical comparison
+//   4. the latest meaningful session, as a grounded recap
+//   5. no session at all: the latest standalone private activity
+// `laterPrivate` is set when a private charge is newer than the selected
+// session, so the copy can say it is separate.
 export function pickPulse({ running = null, history = [], vsById = new Map() }) {
-  if (running) return { kind: "live_now", e: running }
+  if (running) return withLaterPrivate({ kind: "live_now", e: running }, history)
   const fresh = history.find((e) => e.type === "live" && e.isNew)
-  if (fresh) return { kind: "new_show", e: fresh }
-  const latest = history[0]
-  if (!latest) return null
-  const vs = vsById.get(latest.id)
-  if (vs) return { kind: "comparison", e: latest, vs }
-  return { kind: "recap", e: latest, first: history.length === 1 }
+  if (fresh) return withLaterPrivate({ kind: "new_show", e: fresh }, history)
+  const sessions = history.filter((e) => SESSION_TYPES.has(e.type))
+  if (sessions.length) {
+    const compared = sessions.find((e) => vsById.get(e.id))
+    if (compared) return withLaterPrivate({ kind: "comparison", e: compared, vs: vsById.get(compared.id) }, history)
+    return withLaterPrivate({ kind: "recap", e: sessions[0], first: sessions.length === 1 }, history)
+  }
+  const priv = history.find((e) => e.type === "private")
+  return priv ? { kind: "private", e: priv } : null
+}
+
+function withLaterPrivate(pick, history) {
+  const priv = history.find((e) => e.type === "private")
+  const later = priv && (!pick.e || t(priv) > t(pick.e)) ? priv : null
+  return later ? { ...pick, laterPrivate: later } : pick
 }
 
 // Duration shown beside the date. Live Mode: recorded show length ("~" when the
@@ -83,7 +107,7 @@ const CalIcon = () => (
 export default function SessionsPulse({ pick, tz, topFan = null, hourly = null, onOpen, onImport = null, onPlan = null }) {
   if (!pick) return null
   const { kind, e } = pick
-  const platforms = (e.platforms || []).map(pName).join(" + ")
+  const platforms = [...new Set((e.platforms || []).map(pName))].join(" + ") || "Platform not recorded"
   const count = e.type === "private" ? (e.chargeCount ?? e.tipCount ?? 0) : (e.tipCount || 0)
   const fans = e.uniqueTippers || 0
   const dur = durationText(e)
@@ -112,12 +136,22 @@ export default function SessionsPulse({ pick, tz, topFan = null, hourly = null, 
       : { tone: vs.outcome === "above" ? "up" : "down", value: `${vs.deltaPct > 0 ? "+" : ""}${vs.deltaPct}%`, label: "vs. your typical" }
     sideLabel = e.type === "live" ? "Last show" : "Last session"
     action = { label: e.type === "live" ? "View show" : "View session", onClick: () => onOpen(e.id) }
+  } else if (kind === "private") {
+    lead = "Your latest private activity brought in"
+    sentence = `Private charges on ${platforms}: ${count} ${unit(e, count)} from ${fans} ${fans === 1 ? "fan" : "fans"}. Not counted as a show or session.`
+    sideLabel = "Private activity"
+    action = { label: "View activity", onClick: () => onOpen(e.id) }
   } else {
     lead = pick.first ? "Your first recorded session earned" : `Your last ${noun(e)} earned`
     const src = e.type === "live" ? "Recorded by Live Mode on" : e.type === "private" ? "Private charges on" : e.type === "free_chat" ? "Free chat on" : "Reconstructed from imported transactions on"
     sentence = `${src} ${platforms}: ${count} ${unit(e, count)} from ${fans} ${fans === 1 ? "fan" : "fans"}.`
     sideLabel = pick.first ? "First session" : e.type === "live" ? "Last show" : "Last session"
     action = { label: e.type === "live" ? "Review show" : "View session", onClick: () => onOpen(e.id) }
+  }
+  // A private charge newer than the selected session is named separately, so
+  // the selected session is never presented as the latest financial activity.
+  if (pick.laterPrivate) {
+    sentence = `${sentence} Separate private activity came later: ${fmtUsd(pick.laterPrivate.totalUSD)} on ${day(pick.laterPrivate.startTime, tz)}.`
   }
   // A first non-Live session invites more history (low data); View session
   // moves to the second action. Otherwise the second action is the existing
@@ -161,7 +195,6 @@ export default function SessionsPulse({ pick, tz, topFan = null, hourly = null, 
           )}
         </div>
         <div className={L.pulseStats}>
-          <div className={L.pulseStat}><div data-testid={badge ? "pulse-earned" : "pulse-signal"} className={cx(L.pulseStatValue, L.money)}>{fmtUsd(e.totalUSD)}</div><div className={L.pulseStatLabel}>{kind === "live_now" ? "Earned so far" : "Earned"}</div></div>
           <div className={L.pulseStat}><div data-testid="pulse-count" className={cx(L.pulseStatValue, L.money)}>{count}</div><div className={L.pulseStatLabel}>{e.type === "private" ? (count === 1 ? "Charge" : "Charges") : (count === 1 ? "Tip" : "Tips")}</div></div>
           <div className={L.pulseStat}><div data-testid="pulse-fans" className={cx(L.pulseStatValue, L.money)}>{fans}</div><div className={L.pulseStatLabel}>{fans === 1 ? "Unique Tipper" : "Unique Tippers"}</div></div>
         </div>
