@@ -791,6 +791,7 @@ export default function LivePage({ embedded = false } = {}) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 22 }}>
               {[
                 ['🧩', 'Install the free Chrome extension and tips log here automatically — no copy/paste, nothing to remember mid-stream.'],
+                ['🔄', 'Your tips sync automatically and stay in perfect sync with your dashboard — no manual refresh needed.'],
                 ['🎯', 'Get live coaching prompts: pacing, top tippers, and re-engagement nudges as they happen.'],
                 ['📊', 'End your stream to a real recap — earnings, best moments, what to repeat next time.'],
               ].map(([icon, text]) => (
