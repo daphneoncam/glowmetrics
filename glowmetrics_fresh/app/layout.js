@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/react'
 import Script from 'next/script'
 import { Inter } from 'next/font/google'
 import FeedbackWidgetGate from './components/FeedbackWidgetGate'
+import ClickTracker from './components/ClickTracker'
 
 // Weights confirmed via `grep -roh "fontWeight: ..."` across app/lib/components:
 // 400, 500, 600, 700, 800, 900 are all in active use (dashboard/landing/onboarding/blog).
@@ -127,6 +128,7 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         {children}
+        <ClickTracker />
         <FeedbackWidgetGate />
         <Analytics />
 
