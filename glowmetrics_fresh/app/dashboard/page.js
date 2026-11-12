@@ -18,6 +18,7 @@ import SiteFooter from "../components/SiteFooter"
 import { PLATFORM_TOKEN_RATES, tokenRate, platformColor, platformDisplayName, canonicalPlatform } from "../../lib/constants"
 import { track as gtmTrack } from '../../lib/track'
 import { trackTrialEvent } from '../../lib/analytics-client'
+import T from '../../lib/tracking'
 import { getDashboardReadiness, getModuleLockState, canShowHourlyRate, LockedInsightCard, DashboardProgressCard } from './DashboardPreview'
 import PlatformsIntelligence from './PlatformsIntelligence'
 import CommandCenter from './CommandCenter'
@@ -1993,12 +1994,21 @@ export default function Dashboard() {
         const params = new URLSearchParams(window.location.search)
         if (params.get('success') === 'true' && params.get('trial')) {
           const trialDays = parseInt(params.get('trial'), 10) || 7
+          const planType = params.get('plan') || 'standard_monthly'
           const startsAt = new Date()
           const expiresAt = new Date(startsAt.getTime() + trialDays * 86400000)
           trackTrialEvent('trial_started', {
             trialDaysOffered: trialDays,
             trialStartsAt: startsAt.toISOString(),
             trialExpiresAt: expiresAt.toISOString(),
+          })
+          // Fire purchase event for GA4 conversion tracking
+          T.purchase({
+            transaction_type: 'subscription',
+            plan: planType,
+            currency: 'USD',
+            trial_days: trialDays,
+            event_category: 'ecommerce'
           })
           params.delete('success'); params.delete('trial'); params.delete('plan')
           const rest = params.toString()

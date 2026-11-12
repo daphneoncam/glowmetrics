@@ -53,6 +53,7 @@ export const T = {
   dashboardSession:      (platCount)     => trackOnce('dashboard_session_started', { platform_count: platCount }),
   paywallViewed:         (feature)       => track('paywall_viewed',            { feature_name: feature }),
   upgradeClicked:        (feature)       => track('upgrade_clicked',           { feature_name: feature }),
+  purchase:              (params = {})   => track('purchase', params),
 }
 
 export function captureAttribution() {
