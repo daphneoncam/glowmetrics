@@ -45,16 +45,16 @@ async function sendAlert(supabase, emailType, subject, text) {
     const resendResponse = await response.json()
 
     if (response.ok && resendResponse.id) {
-      await logEmail(emailType, 'daphneoncam@gmail.com', subject, 'sent', resendResponse, null)
+      await logEmail(supabase, emailType, 'daphneoncam@gmail.com', subject, 'sent', resendResponse, null)
       console.log(`[sendAlert] Email sent successfully: ${resendResponse.id}`)
       return true
     } else {
-      await logEmail(emailType, 'daphneoncam@gmail.com', subject, 'failed', resendResponse, resendResponse.message || 'Unknown error')
+      await logEmail(supabase, emailType, 'daphneoncam@gmail.com', subject, 'failed', resendResponse, resendResponse.message || 'Unknown error')
       console.error(`[sendAlert] Resend API error: ${resendResponse.message}`)
       return false
     }
   } catch (e) {
-    await logEmail(emailType, 'daphneoncam@gmail.com', subject, 'failed', null, e.message)
+    await logEmail(supabase, emailType, 'daphneoncam@gmail.com', subject, 'failed', null, e.message)
     console.error(`[sendAlert] Exception: ${e.message}`)
     return false
   }
@@ -105,7 +105,7 @@ export async function GET() {
   const alertSubject = `🚨 CRITICAL: ${failures.length} Stripe Webhook Failures in Last 24h`
   const alertText = `WARNING: Your Stripe webhook processing had failures in the last 24 hours.\n\nTotal Failures: ${failures.length}\n\nBreakdown:\n${failureDetails}\n\nCheck your webhook_events table for full details:\nSELECT * FROM webhook_events WHERE status != 'success' AND created_at >= NOW() - INTERVAL '24 hours' ORDER BY created_at DESC;`
 
-  await sendAlert('webhook_failures', alertSubject, alertText)
+  await sendAlert(supabase, 'webhook_failures', alertSubject, alertText)
 
   console.log(`[cron/check-webhook-failures] found ${failures.length} failures, alert sent`)
   return NextResponse.json({ success: true, failures_found: failures.length, grouped: failuresByStatus })
