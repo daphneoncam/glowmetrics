@@ -103,7 +103,7 @@ export default function PrivateSessions({ paidSessions = [], tipsTotalUSD = null
       <div style={{ ...cardStyle, textAlign: "center", padding: "48px 24px" }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: TEXT, marginBottom: 8 }}>No private sessions yet</div>
         <div style={{ fontSize: 13, color: MUTED, maxWidth: 420, margin: "0 auto" }}>
-          Import your BongaCams Paid Chat history from the onboarding or CSV import flow to see Private, Full-Private, Group, and Spy Mode session analytics here.
+          Import your BongaCams, Chaturbate, or MyFreeCams private-session history from the onboarding or CSV import flow to see Private, Full-Private, Group, and Spy Mode session analytics here.
         </div>
       </div>
     )
