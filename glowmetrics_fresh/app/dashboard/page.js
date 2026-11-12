@@ -1446,6 +1446,7 @@ export default function Dashboard() {
   const importMessageTimerRef = useRef(null)
   const uploading = importStage === 'processing'
   const [uploadPlatform, setUploadPlatform] = useState("")
+  const [csvDragActive, setCsvDragActive] = useState(false)
   const [lastUploadResult, setLastUploadResult] = useState(null)
   // Platform-limit soft paywall: preview of what's in a blocked import, shown
   // instead of a hard block (see denyWithPlatformPreview / handleCSV below)
@@ -4321,14 +4322,19 @@ const stopImportMessageRotation = () => {
               )}
 
               {(importStage === 'idle') && (
-                <div style={{ textAlign: "center" }}>
+                <div
+                  onDragOver={e => { e.preventDefault(); e.stopPropagation(); setCsvDragActive(true) }}
+                  onDragEnter={e => { e.preventDefault(); e.stopPropagation(); setCsvDragActive(true) }}
+                  onDragLeave={e => { e.preventDefault(); e.stopPropagation(); setCsvDragActive(false) }}
+                  onDrop={e => { e.preventDefault(); e.stopPropagation(); setCsvDragActive(false); const f = e.dataTransfer.files?.[0]; if (f) handleCSV(f, uploadPlatform || null) }}
+                  style={{ textAlign: "center", borderRadius: 12, padding: 12, border: "2px dashed transparent", transition: "all 0.2s", ...(csvDragActive ? { borderColor: "rgba(33,230,243,0.5)", background: "rgba(33,230,243,0.05)" } : {}) }}>
                   <div style={{ fontSize: 40, marginBottom: 12 }}>📁</div>
                   <Button as="label" style={{ padding: "14px 32px", fontSize: 15 }}>
-                    Upload CSV
+                    {csvDragActive ? "Drop it!" : "Upload CSV"}
                     <input type="file" accept=".csv,.txt" style={{ display: "none" }}
                       onChange={e => { const f = e.target.files[0]; e.target.value = ''; handleCSV(f, uploadPlatform || null) }} />
                   </Button>
-                  <p style={{ fontSize: 12, color: C.muted, marginTop: 12 }}>Supports Chaturbate, BongaCams, MyFreeCams, Stripchat, CamSoda</p>
+                  <p style={{ fontSize: 12, color: C.muted, marginTop: 12 }}>Supports Chaturbate, BongaCams, MyFreeCams, Stripchat, CamSoda — or drag & drop your file here</p>
                 </div>
               )}
 

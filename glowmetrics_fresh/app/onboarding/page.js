@@ -626,6 +626,7 @@ export default function OnboardingPage(){
   const[showUpsell,setShowUpsell]=useState(false)
   const[pendingPlatform,setPendingPlatform]=useState(null)
   const[csvUploading,setCsvUploading]=useState(false)
+  const[csvDragActive,setCsvDragActive]=useState(false)
   const[csvError,setCsvError]=useState('')
   const[loadingMsgIdx,setLoadingMsgIdx]=useState(0)
   const[loadingProgress,setLoadingProgress]=useState(0)
@@ -995,9 +996,14 @@ export default function OnboardingPage(){
                 <h1 style={{fontSize:23,fontWeight:900,color:'#F8FAFC',letterSpacing:'-0.025em',marginBottom:7}}>Upload your CSV</h1>
                 <p style={{fontSize:13,color:'rgba(166,168,189,0.85)',lineHeight:1.65}}>Export your earnings as a CSV file and drop it below.</p>
               </div>
-              <div onClick={()=>!csvUploading&&csvRef.current?.click()} style={{border:'2px dashed rgba(255,255,255,0.1)',borderRadius:16,padding:'40px 20px',textAlign:'center',cursor:csvUploading?'not-allowed':'pointer',background:'rgba(255,255,255,0.02)',marginBottom:12,transition:'all 0.2s'}} onMouseEnter={e=>{if(!csvUploading){e.currentTarget.style.borderColor='rgba(33,230,243,0.4)';e.currentTarget.style.background='rgba(33,230,243,0.03)'}}} onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(255,255,255,0.1)';e.currentTarget.style.background='rgba(255,255,255,0.02)'}}>
+              <div onClick={()=>!csvUploading&&csvRef.current?.click()}
+                onDragOver={e=>{e.preventDefault();e.stopPropagation();if(!csvUploading)setCsvDragActive(true)}}
+                onDragEnter={e=>{e.preventDefault();e.stopPropagation();if(!csvUploading)setCsvDragActive(true)}}
+                onDragLeave={e=>{e.preventDefault();e.stopPropagation();setCsvDragActive(false)}}
+                onDrop={e=>{e.preventDefault();e.stopPropagation();setCsvDragActive(false);if(csvUploading)return;const f=e.dataTransfer.files?.[0];if(f)handleCsvUpload(f)}}
+                style={{border:'2px dashed rgba(255,255,255,0.1)',borderRadius:16,padding:'40px 20px',textAlign:'center',cursor:csvUploading?'not-allowed':'pointer',background:'rgba(255,255,255,0.02)',marginBottom:12,transition:'all 0.2s',...(csvDragActive?{borderColor:'rgba(33,230,243,0.6)',background:'rgba(33,230,243,0.06)'}:{})}} onMouseEnter={e=>{if(!csvUploading&&!csvDragActive){e.currentTarget.style.borderColor='rgba(33,230,243,0.4)';e.currentTarget.style.background='rgba(33,230,243,0.03)'}}} onMouseLeave={e=>{if(!csvDragActive){e.currentTarget.style.borderColor='rgba(255,255,255,0.1)';e.currentTarget.style.background='rgba(255,255,255,0.02)'}}}>
                 <input ref={csvRef} type="file" accept=".csv,.txt" style={{display:'none'}} onChange={e=>{const f=e.target.files[0];if(f)handleCsvUpload(f)}}/>
-                {csvUploading?(<><div style={{width:24,height:24,borderRadius:'50%',border:'2px solid rgba(255,255,255,0.1)',borderTopColor:CYAN,animation:'spin 0.8s linear infinite',margin:'0 auto 10px'}}/><div style={{fontSize:13,color:CYAN,fontWeight:500}}>Uploading…</div></>):(<><div style={{fontSize:28,marginBottom:8}}>📁</div><div style={{fontSize:13,fontWeight:700,color:'#f8fafc',marginBottom:3}}>Drop your CSV here or click to browse</div><div style={{fontSize:11,color:'rgba(148,163,184,0.55)'}}>Supports {platform.label} export format</div></>)}
+                {csvUploading?(<><div style={{width:24,height:24,borderRadius:'50%',border:'2px solid rgba(255,255,255,0.1)',borderTopColor:CYAN,animation:'spin 0.8s linear infinite',margin:'0 auto 10px'}}/><div style={{fontSize:13,color:CYAN,fontWeight:500}}>Uploading…</div></>):(<><div style={{fontSize:28,marginBottom:8}}>📁</div><div style={{fontSize:13,fontWeight:700,color:'#f8fafc',marginBottom:3}}>{csvDragActive?'Drop it!':'Drop your CSV here or click to browse'}</div><div style={{fontSize:11,color:'rgba(148,163,184,0.55)'}}>Supports {platform.label} export format</div></>)}
               </div>
               {csvError&&<div style={{marginBottom:12,padding:'9px 12px',borderRadius:11,background:'rgba(248,113,113,0.07)',border:'1px solid rgba(248,113,113,0.22)',fontSize:12,color:'#f87171'}}>⚠️ {csvError}</div>}
               <div style={{display:'flex',gap:9}}><OBSecBtn onClick={()=>setStep('paste')} style={{flex:1}}>← Use paste instead</OBSecBtn><OBSecBtn onClick={()=>setStep('platform')} style={{flex:1}}>← Back</OBSecBtn></div>
