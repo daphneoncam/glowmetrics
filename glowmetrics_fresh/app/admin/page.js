@@ -155,7 +155,7 @@ export default function AdminPage() {
     </div>
   )
 
-  const { kpis, funnel, stageBreakdown, platformBreakdown, users=[], importHealth, liveMode, extension, subscriptions, feedback, signupsByDay=[], utmBreakdown={}, generatedAt } = data || {}
+  const { kpis, funnel, stageBreakdown, platformBreakdown, users=[], importHealth, liveMode, extension, subscriptions, feedback, signupsByDay=[], signupsByDayOfWeek=[], signupsByDayOfWeekStats={}, utmBreakdown={}, generatedAt } = data || {}
 
   // Filter + sort users
   const filtered = users
@@ -420,6 +420,60 @@ export default function AdminPage() {
             }
           </Card>
         </div>
+
+        {/* Signups by Day of Week */}
+        <Card style={{ marginBottom:20 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+            <SectionTitle>Signups by Day of Week (All Time)</SectionTitle>
+            {signupsByDayOfWeekStats?.average && (
+              <span style={{ fontSize:10, color:C.muted }}>Avg: {signupsByDayOfWeekStats.average}/day</span>
+            )}
+          </div>
+          {signupsByDayOfWeek.length === 0
+            ? <div style={{ fontSize:12, color:C.muted }}>No signup data</div>
+            : (() => {
+                const max = Math.max(...signupsByDayOfWeek.map(d => d.count), 1)
+                const dayOrder = [1, 2, 3, 4, 5, 6, 0] // Monday through Sunday
+                const ordered = dayOrder.map(i => signupsByDayOfWeek[i]).filter(Boolean)
+                return (
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))", gap:12 }}>
+                    {ordered.map(({ day, count, percentage }) => (
+                      <div key={day} style={{ background:"rgba(255,255,255,0.04)", borderRadius:10, padding:"12px" }}>
+                        <div style={{ fontSize:11, fontWeight:700, color:C.text, marginBottom:6 }}>{day}</div>
+                        <div style={{ fontSize:18, fontWeight:800, color:C.cyan, fontFamily:"'DM Mono',monospace", marginBottom:4 }}>{count}</div>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                          <div style={{ height:3, flex:1, background:"rgba(255,255,255,0.07)", borderRadius:99, overflow:"hidden", marginRight:6 }}>
+                            <div style={{ height:"100%", width:`${(count/max)*100}%`, background:`linear-gradient(90deg, ${C.cyan}, ${C.purple})`, borderRadius:99 }}/>
+                          </div>
+                          <span style={{ fontSize:9, color:C.muted, fontFamily:"'DM Mono',monospace" }}>{percentage}%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()
+          }
+          {signupsByDayOfWeekStats && (
+            <div style={{ marginTop:16, paddingTop:12, borderTop:`1px solid ${C.border}` }}>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                <div>
+                  <div style={{ fontSize:9, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Highest Day</div>
+                  <div style={{ display:"flex", alignItems:"baseline", gap:6 }}>
+                    <span style={{ fontSize:14, fontWeight:800, color:C.green }}>{signupsByDayOfWeekStats.maxDay}</span>
+                    <span style={{ fontSize:11, color:C.muted }}>({signupsByDayOfWeekStats.maxCount} signups)</span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize:9, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Lowest Day</div>
+                  <div style={{ display:"flex", alignItems:"baseline", gap:6 }}>
+                    <span style={{ fontSize:14, fontWeight:800, color:C.red }}>{signupsByDayOfWeekStats.minDay}</span>
+                    <span style={{ fontSize:11, color:C.muted }}>({signupsByDayOfWeekStats.minCount} signups)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </Card>
 
         {/* Recent Imports */}
         {importHealth?.recent?.length > 0 && (

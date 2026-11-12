@@ -243,6 +243,30 @@ export async function GET(req) {
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, count]) => ({ date, count }))
 
+  // Signups by day of week (all time, real users only)
+  const dayOfWeekNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const signupsByDayOfWeek = {
+    0: { day: 'Sunday',    count: 0 },
+    1: { day: 'Monday',    count: 0 },
+    2: { day: 'Tuesday',   count: 0 },
+    3: { day: 'Wednesday', count: 0 },
+    4: { day: 'Thursday',  count: 0 },
+    5: { day: 'Friday',    count: 0 },
+    6: { day: 'Saturday',  count: 0 },
+  }
+  for (const u of realUsers) {
+    const createdDate = new Date(u.created_at)
+    const dayOfWeek = createdDate.getUTCDay()
+    signupsByDayOfWeek[dayOfWeek].count++
+  }
+  const dayOfWeekData = Object.values(signupsByDayOfWeek).map(item => ({
+    day: item.day,
+    count: item.count,
+    percentage: totalRealUsers > 0 ? ((item.count / totalRealUsers) * 100).toFixed(1) : 0
+  }))
+  const maxDayOfWeek = dayOfWeekData.reduce((max, d) => d.count > max.count ? d : max, dayOfWeekData[0] || {})
+  const minDayOfWeek = dayOfWeekData.reduce((min, d) => d.count < min.count ? d : min, dayOfWeekData[0] || {})
+
   return NextResponse.json({
     kpis: {
       totalUsers,
@@ -272,6 +296,14 @@ export async function GET(req) {
     subscriptions: subBreakdown,
     feedback,
     signupsByDay,
+    signupsByDayOfWeek: dayOfWeekData,
+    signupsByDayOfWeekStats: {
+      maxDay: maxDayOfWeek.day,
+      maxCount: maxDayOfWeek.count,
+      minDay: minDayOfWeek.day,
+      minCount: minDayOfWeek.count,
+      average: (totalRealUsers / 7).toFixed(2),
+    },
     generatedAt:  now.toISOString(),
   })
 }
