@@ -39,7 +39,7 @@ jobs:
           echo "duration=$DURATION" >> $GITHUB_OUTPUT
 
       - name: Notify Slack on Failure
-        uses: slackapi/slack-github-action@v1.25.0
+        uses: slackapi/slack-github-action@v4.0.0
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
           payload: |
@@ -109,7 +109,7 @@ jobs:
         if: ${{ env.SLACK_WEBHOOK_URL != '' }}
 
       - name: Notify Slack on Success
-        uses: slackapi/slack-github-action@v1.25.0
+        uses: slackapi/slack-github-action@v4.0.0
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
           payload: |
