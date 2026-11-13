@@ -37,8 +37,9 @@ export async function logParseAttempt({
 
   const supported = SUPPORTED_PLATFORMS.includes(attemptedPlatform.toLowerCase())
 
-  // Truncate raw text to first 500 chars to avoid huge storage
-  const truncatedText = rawText ? rawText.substring(0, 500) : null
+  // The full dataset is sent; the database function stores up to 2,000,000
+  // characters (plus size, sha256 and a truncated flag) and keeps 90 days.
+  const fullText = rawText || null
 
   try {
     const { data, error } = await supabase.rpc('log_paste_parse_attempt', {
@@ -47,7 +48,7 @@ export async function logParseAttempt({
       p_attempted_platform: attemptedPlatform.toLowerCase(),
       p_claimed_platform: claimedPlatform ? claimedPlatform.toLowerCase() : null,
       p_supported: supported,
-      p_raw_text: truncatedText,
+      p_raw_text: fullText,
       p_line_count: formatAnalysis.line_count || null,
       p_has_tabs: formatAnalysis.has_tabs || null,
       p_has_commas: formatAnalysis.has_commas || null,
@@ -84,10 +85,13 @@ export function analyzeFormat(rawText) {
   // Analyze line shapes (pattern of text vs numbers)
   const shapes = []
   for (const line of lines.slice(0, 20)) {
+    // Content-free: every digit -> 9, every letter in ANY script -> a, all
+    // other characters (punctuation, emoji, symbols) dropped. No username,
+    // amount or text survives, only the line's structure.
     const shape = line
-      .replace(/\d/g, '9')
-      .replace(/[a-zA-Z]/g, 'a')
-      .replace(/[^\w\s]/g, '')
+      .replace(/\p{Nd}/gu, '9')
+      .replace(/\p{L}/gu, 'a')
+      .replace(/[^a9\s]/g, '')
       .substring(0, 50)
     shapes.push(shape)
   }

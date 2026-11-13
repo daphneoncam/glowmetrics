@@ -96,6 +96,16 @@ describe('POST /api/stripe/checkout', () => {
     expect(args.cancel_url).toBe('https://www.camcashgrl.com/dashboard?canceled=true')
   })
 
+  test('abandoned checkouts can be recovered: recovery enabled, promo codes off, consent collected', async () => {
+    await POST(req({ plan_type: 'standard_monthly' }))
+    const args = stripe.checkout.sessions.create.mock.calls[0][0]
+    expect(args.after_expiration).toEqual({ recovery: { enabled: true, allow_promotion_codes: false } })
+    expect(args.consent_collection).toEqual({ promotions: 'auto' })
+    // Pricing and trial are untouched by recovery.
+    expect(args.subscription_data.trial_period_days).toBe(7)
+    expect(args.line_items).toEqual([{ price: 'price_m', quantity: 1 }])
+  })
+
   test('a Stripe session without a URL is an error, not a silent success', async () => {
     stripe.checkout.sessions.create.mockResolvedValueOnce({ id: 'cs_x', url: null })
     const res = await POST(req({ plan_type: 'standard_monthly' }))

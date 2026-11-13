@@ -160,6 +160,13 @@ export async function POST(request) {
       },
       success_url: `${request.headers.get('origin')}/dashboard?success=true&trial=7days&plan=${planType}`,
       cancel_url: `${request.headers.get('origin')}/dashboard?canceled=true`,
+      // Abandoned-checkout recovery: if the session expires unpaid, Stripe
+      // attaches a recovery URL and (with "recovery emails" enabled in the
+      // Stripe Dashboard) emails the creator a link back to the same plan.
+      // Stripe only emails people who opted in via the consent checkbox below
+      // (US accounts only; this account is US) and handles unsubscribes.
+      after_expiration: { recovery: { enabled: true, allow_promotion_codes: false } },
+      consent_collection: { promotions: 'auto' },
       metadata: {
         userId: user.id,
         plan_type: planType,

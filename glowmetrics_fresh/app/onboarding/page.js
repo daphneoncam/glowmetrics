@@ -1106,7 +1106,7 @@ export default function OnboardingPage(){
           if(p&&p.transactionsDetected>0){setPreview(p);setDetectStatus('success');setParseError('')}
           else{
             setPreview(null);setDetectStatus('error')
-            if(parseFailTrackedRef.current!==pasteText){parseFailTrackedRef.current=pasteText;track('onboarding_paste_parse_failed',{platform:platformId,source:'auto_detect'})}
+            if(parseFailTrackedRef.current!==pasteText){parseFailTrackedRef.current=pasteText;const fa=analyzeFormat(pasteText);track('onboarding_paste_parse_failed',{platform:platformId,source:'auto_detect',...fa});if(user?.id)logParseAttempt({userId:user.id,source:'onboarding',attemptedPlatform:platformId,claimedPlatform:platformId,rawText:pasteText,formatAnalysis:fa,parseSuccess:false,errorReason:'auto_detect: no earning rows found',errorDetails:{...fa,stage:'auto_detect'}})}
           }
         },220)
       },260)
@@ -1295,7 +1295,7 @@ export default function OnboardingPage(){
         }catch(e){fail(0,'We couldn’t read this history.',e);return}
         if(!p||!p.transactionsDetected){
           const msg=source==='csv'?'We couldn’t find any earnings rows in this file.':'We couldn’t find any earning rows in this paste.'
-          track('onboarding_paste_parse_failed',{platform:platformId,source})
+          track('onboarding_paste_parse_failed',{platform:platformId,source,...analyzeFormat(text)})
           if(source==='paste'&&user?.id){const formatAnalysis=analyzeFormat(text);logParseAttempt({userId:user.id,source:'onboarding',attemptedPlatform:platformId,claimedPlatform:platformId,rawText:text,formatAnalysis,parseSuccess:false,errorReason:msg,errorDetails:formatAnalysis})}
           fail(0,msg)
           return

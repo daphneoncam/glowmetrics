@@ -1,3 +1,4 @@
+import { analyzeFormat } from '../../../lib/parseTracking'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 // Token rates — always imported from constants, never hardcoded
@@ -92,6 +93,30 @@ export async function POST(req) {
       tokens,
       usd,
     })
+  }
+
+  // Save the full dataset of every private-sessions import (successful or
+  // not) for parser diagnostics. Non-blocking: a logging failure never stops
+  // the import. The DB function only logs for the caller's own account.
+  try {
+    const formatAnalysis = analyzeFormat(raw)
+    await supabase.rpc('log_paste_parse_attempt', {
+      p_user_id: user.id,
+      p_source: 'onboarding',
+      p_attempted_platform: platform || 'unknown',
+      p_claimed_platform: platform || null,
+      p_supported: true,
+      p_raw_text: raw,
+      p_line_count: formatAnalysis.line_count || null,
+      p_has_tabs: formatAnalysis.has_tabs || null,
+      p_has_commas: formatAnalysis.has_commas || null,
+      p_top_shapes: formatAnalysis.top_shapes || null,
+      p_parse_success: rows.length > 0,
+      p_error_reason: rows.length > 0 ? null : 'No valid paid session rows found',
+      p_error_details: { ...formatAnalysis, importer: 'paid_sessions', data_lines: lines.length - 1, parsed_rows: rows.length },
+    })
+  } catch (err) {
+    console.error('[PAID-SESSIONS] Failed to log parse attempt:', err)
   }
 
   if (!rows.length) {
