@@ -2446,7 +2446,9 @@ const stopImportMessageRotation = () => {
       const msg = result.skipped > 0
         ? `✅ All ${result.inserted + result.skipped} tips imported (${result.skipped} were already saved from an earlier upload)`
         : `✅ Imported ${result.inserted} tips from ${result.platform}!`
-      showToast(msg)
+      // Rows the server held back are never silent: say how many were not imported.
+      const notImported = (result.rejectedRows || 0) + (result.unresolvedUsdRows || 0)
+      showToast(notImported > 0 ? `${msg} ⚠️ ${notImported} row(s) were not imported, see details` : msg)
       setLastUploadResult({
         success: true,
         inserted: result.inserted,
@@ -2455,6 +2457,8 @@ const stopImportMessageRotation = () => {
         totalUsd: result.totalUsd,
         dateFrom: result.dateFrom,
         dateTo: result.dateTo,
+        rejectedRowsWarning: result.rejectedRowsWarning || null,
+        unresolvedUsdWarning: result.unresolvedUsdWarning || null,
       })
       setImportStage('success')
 
@@ -6127,6 +6131,12 @@ const stopImportMessageRotation = () => {
                   )}
                   {lastUploadResult.skipped > 0 && (
                     <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>{lastUploadResult.skipped} were already saved from an earlier upload — nothing was lost</div>
+                  )}
+                  {lastUploadResult.rejectedRowsWarning && (
+                    <div data-testid="upload-rejected-warning" style={{ fontSize: 12, color: C.gold, marginTop: 6 }}>⚠️ {lastUploadResult.rejectedRowsWarning}</div>
+                  )}
+                  {lastUploadResult.unresolvedUsdWarning && (
+                    <div data-testid="upload-unresolved-warning" style={{ fontSize: 12, color: C.gold, marginTop: 6 }}>⚠️ {lastUploadResult.unresolvedUsdWarning}</div>
                   )}
                   <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 20, flexWrap: "wrap" }}>
                     <Button onClick={() => handleTabChange('overview')} style={{ padding: "12px 26px", fontSize: 14 }}>View Dashboard</Button>

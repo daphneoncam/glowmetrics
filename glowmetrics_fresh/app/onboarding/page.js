@@ -1408,13 +1408,13 @@ export default function OnboardingPage(){
       const json=await readUploadJson(res)
       if(!res.ok||json.error){const err=new Error(json.error||'Upload failed');err.code=json.code;err.upgradeUrl=json.upgradeUrl;throw err}
       assertImportComplete(json)
-      return{inserted:json.inserted??0,skipped:json.skipped??0,paidInserted:json.paidSessionsInserted??0,totalUsd:json.totalUsd,dateFrom:json.dateFrom,dateTo:json.dateTo}
+      return{inserted:json.inserted??0,skipped:json.skipped??0,paidInserted:json.paidSessionsInserted??0,totalUsd:json.totalUsd,dateFrom:json.dateFrom,dateTo:json.dateTo,notImported:(json.rejectedRows||0)+(json.unresolvedUsdRows||0),notImportedNotes:[json.rejectedRowsWarning,json.unresolvedUsdWarning].filter(Boolean)}
     }finally{clearTimeout(timeoutId)}
   }
 
   function finishProcessing(p,saved,analysis,source){
     const{inserted,skipped,paidInserted}=saved
-    setImportResult({inserted,skipped,paidInserted})
+    setImportResult({inserted,skipped,paidInserted,notImported:saved.notImported||0,notImportedNotes:saved.notImportedNotes||[]})
     setImportedPlatforms(prev=>prev.includes(platformId)?prev:[...prev,platformId])
     track('onboarding_import_completed',{platform:platformId,inserted,skipped,source})
     if(isFirstImport){track('onboarding_completed',{platform:platformId,...(source==='csv'?{source}:{})});setIsFirstImport(false);setShowSparkle(true);setTimeout(()=>setShowSparkle(false),4000)}
@@ -2123,6 +2123,16 @@ export default function OnboardingPage(){
                   </div>
                 </div>))}
               </div>
+
+              {/* Rows the server held back are never silent (same callout shape as paid sessions below) */}
+              {importResult.notImported>0&&(
+                <div data-testid="onboarding-not-imported" style={{borderRadius:12,border:'1px solid rgba(245,158,11,0.3)',background:'rgba(245,158,11,0.05)',padding:'10px 13px',marginBottom:12,textAlign:'left',display:'flex',gap:9,alignItems:'flex-start'}}>
+                  <span style={{fontSize:14,flexShrink:0}}>⚠️</span>
+                  <div style={{fontSize:11,color:'rgba(203,213,225,0.8)',lineHeight:1.55}}>
+                    {importResult.notImportedNotes.map((n,i)=><div key={i}>{n}</div>)}
+                  </div>
+                </div>
+              )}
 
               {/* Paid sessions callout on done screen */}
               {importResult.paidInserted>0&&(

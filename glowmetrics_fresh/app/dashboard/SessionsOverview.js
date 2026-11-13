@@ -673,7 +673,11 @@ export default function SessionsOverview({ tips, shows, paidSessions, tz, showsL
   const rows = [...(runningEntry && (filter === "all" || filter === "live") ? [runningEntry] : []), ...listed].slice(0, ROWS)
   const selected = rows.find((r) => r.id === selectedId) || rows[0] || null
   const mode = useMemo(() => sessionsMode({ tips: T0, shows: S0, paidSessions: P0, live: !!live?.session }), [tips, shows, paidSessions, live?.session]) // eslint-disable-line react-hooks/exhaustive-deps
-  const scope = mode.kind === "csv" ? "overall" : mode.kind === "mixed" ? (scopePick || "today") : "today"
+  // Mixed accounts open on Today only when there is activity in the selected
+  // range (or a running show); otherwise Overall, so imported history is shown
+  // instead of a page of zeros. An explicit pick always wins.
+  const hasRangeActivity = !!runningEntry || stats.tipCount > 0 || stats.totalUSD > 0 || stats.completedSessions > 0
+  const scope = mode.kind === "csv" ? "overall" : mode.kind === "mixed" ? (scopePick || (hasRangeActivity ? "today" : "overall")) : "today"
   const overall = useMemo(() => overallSessionStats({ tips: T0, history, paidSessions: P0 }), [history]) // eslint-disable-line react-hooks/exhaustive-deps
   const perf = useMemo(() => sessionPerformance({ history, tips: T0, overall }), [history, overall]) // eslint-disable-line react-hooks/exhaustive-deps
   const showPerf = scope === "overall" || (mode.kind !== "none" && mode.singlePlatform)

@@ -4,7 +4,58 @@
 
 // Token rates live in ONE place — lib/constants.js
 // Do not define rates here. Import only.
-import { PLATFORM_TOKEN_RATES, DEFAULT_TOKEN_RATE, tokenRate, canonicalPlatform } from './constants'
+import { PLATFORM_TOKEN_RATES, DEFAULT_TOKEN_RATE, tokenRate, canonicalPlatform, tokensToUsd } from './constants'
+
+// A CSV USD value more than this factor away from tokens x rate means the
+// columns were misread (e.g. a year parsed as tokens); the row is rejected.
+export const USD_MISMATCH_FACTOR = 5
+
+// True only for a platform with an established token rate (lib/constants.js).
+// 'Unknown' and unrecognised names never borrow another platform's rate.
+export function hasKnownTokenRate(platform) {
+  const c = canonicalPlatform(platform)
+  return !!c && PLATFORM_TOKEN_RATES[c] != null
+}
+
+// USD for one imported row, at the 4-decimal precision tips.usd stores (never
+// rounded to cents per tip). Keeps the actual payout and the token-derived
+// value side by side so they can be audited; they are never interchanged.
+//   source 'payout'     - the export's own USD payout (kept as supplied)
+//   source 'tokens'     - no payout: tokens x the platform's established rate
+//   source 'unresolved' - tokens only, platform has no known rate: no USD is
+//                         invented (usd 0, must not be stored as earnings)
+//   source 'rejected'   - payout contradicts tokens x rate by more than
+//                         USD_MISMATCH_FACTOR (misread columns): skip the row
+//   source 'none'       - neither tokens nor a payout
+// usdFromTokens is null when the platform has no known rate.
+export function resolveRowUsdDetail(tokens, csvUsd, platform) {
+  const t = Number(tokens) || 0
+  const u = Number(csvUsd) || 0
+  const usdFromTokens = t > 0 && hasKnownTokenRate(platform) ? tokensToUsd(t, platform) : null
+  if (u > 0) {
+    if (usdFromTokens !== null && (u > usdFromTokens * USD_MISMATCH_FACTOR || u * USD_MISMATCH_FACTOR < usdFromTokens)) {
+      return { usd: null, source: 'rejected', usdFromTokens }
+    }
+    return { usd: Math.round(u * 1e4) / 1e4, source: 'payout', usdFromTokens }
+  }
+  if (usdFromTokens !== null) return { usd: usdFromTokens, source: 'tokens', usdFromTokens }
+  if (t > 0) return { usd: 0, source: 'unresolved', usdFromTokens: null }
+  return { usd: 0, source: 'none', usdFromTokens: null }
+}
+
+// USD only. null = rejected row (callers skip it).
+export function resolveRowUsd(tokens, csvUsd, platform) {
+  const d = resolveRowUsdDetail(tokens, csvUsd, platform)
+  return d.source === 'rejected' ? null : d.usd
+}
+
+// Audit fields carried on every parsed row (not stored as columns).
+const usdAudit = (d) => ({ usd_source: d.source, usd_from_tokens: d.usdFromTokens })
+
+// Tokens implied by a payout-only row, only when the platform rate is known.
+function tokensFromPayout(usd, platform) {
+  return hasKnownTokenRate(platform) && usd > 0 ? Math.round(usd / tokenRate(platform)) : 0
+}
 // Session grouping lives in ONE place — lib/analytics/sessions.js
 // Shared with app/live/page.js. Do not redefine this logic here.
 import { detectSessions, SESSION_GAP_MS, isValidSession } from './analytics/sessions'
@@ -199,7 +250,7 @@ function parseChaturbateMultiLine(lines) {
         if (fanClubMatch) note = note ? `Fan Club Membership: ${note}` : 'Fan Club Membership'
         results.push({
           dateRaw, date_time: dateRaw, username, platform: 'Chaturbate',
-          tokens, usd: parseFloat((tokens * tokenRate('Chaturbate')).toFixed(2)),
+          tokens, usd: tokensToUsd(tokens, 'Chaturbate'), ...usdAudit(resolveRowUsdDetail(tokens, 0, 'Chaturbate')),
           tip_type: privateMatch ? 'Private Show' : fanClubMatch ? 'Membership' : saleMatch ? 'Other Sale' : 'Tip', tip_note: note,
           ...(privateMatch ? { is_paid_session: true, session_type: 'Private Show' } : {}),
         })
@@ -240,13 +291,28 @@ export function detectDateOrder(text) {
 // never shared between two parses). null keeps the previous behaviour.
 let activeDateOrder = null
 
+// Rows dropped as unreadable (payout contradicts tokens: misread columns).
+// Counted per parseCSV() call; parsing is synchronous, so the count read by
+// parseCSVWithStats() right after the call belongs to that call.
+let parseRejectedCount = 0
+let lastParseRejectedRows = 0
+
 export function parseCSV(text, platform = null, { dateOrder = null } = {}) {
   activeDateOrder = dateOrder === 'DMY' || dateOrder === 'MDY' ? dateOrder : null
+  parseRejectedCount = 0
   try {
     return parseCSVInner(text, platform)
   } finally {
+    lastParseRejectedRows = parseRejectedCount
     activeDateOrder = null
   }
+}
+
+// Same rows as parseCSV(), plus how many rows were rejected as unreadable,
+// so callers can tell the creator instead of dropping them silently.
+export function parseCSVWithStats(text, platform = null, opts = {}) {
+  const rows = parseCSV(text, platform, opts)
+  return { rows, rejectedRows: lastParseRejectedRows }
 }
 
 function parseCSVInner(text, platform) {
@@ -340,9 +406,11 @@ function joinStackedHeaderLines(lines, delimiter) {
 
 function normalizeTip(row) {
   const tokens = parseInt(row.tokens) || 0
-  const rawUsd = parseFloat(row.usd) || 0
-  const rate = tokenRate(row.platform)
-  const usd = rawUsd > 0 ? rawUsd : parseFloat((tokens * rate).toFixed(2))
+  // A row already priced from tokens is re-checked from tokens, not as a payout.
+  const csvUsd = row.usd_source === 'tokens' || row.usd_source === 'unresolved' ? 0 : (parseFloat(row.usd) || 0)
+  const detail = resolveRowUsdDetail(tokens, csvUsd, row.platform)
+  if (detail.source === 'rejected') { parseRejectedCount++; return null }
+  const usd = detail.usd
   const dateRaw = normalizeDate(row.dateRaw || row.date_time || '')
   const parsedDate = new Date(dateRaw)
   if (isNaN(parsedDate.getTime())) return null
@@ -350,7 +418,8 @@ function normalizeTip(row) {
     ...row,
     username: (row.username || '').toLowerCase().trim(),
     tokens,
-    usd: parseFloat(usd.toFixed(2)),
+    usd,
+    ...usdAudit(detail),
     dateRaw,
     date_time: dateRaw,
   }
@@ -515,7 +584,16 @@ function parseWithHeaders(lines, platform, delimiter = ',') {
     if (!line) continue
     const vals = parseCSVLine(line, delimiter)
     const row = {}
-    headers.forEach((h, idx) => { row[h] = (vals[idx] ?? '').trim() })
+    // Repeated header names (e.g. a spreadsheet with two "Tokens" columns, or
+    // a second, empty table to the right repeating DATE/USERNAME/USD) must not
+    // erase a value already read: a blank never replaces a filled cell, and for
+    // tokens/usd a numeric cell replaces a non-numeric one ("Tips" vs "1").
+    const isNumericCell = (v) => /^-?\$?\s*[\d.,\s]+$/.test(v) && /\d/.test(v)
+    headers.forEach((h, idx) => {
+      const v = (vals[idx] ?? '').trim()
+      if (!(h in row) || row[h] === '') { row[h] = v; return }
+      if (v !== '' && (h === 'tokens' || h === 'usd') && !isNumericCell(row[h]) && isNumericCell(v)) row[h] = v
+    })
 
     const action = (row.action || '')
     const actionLower = action.toLowerCase()
@@ -588,14 +666,17 @@ function parseWithHeaders(lines, platform, delimiter = ',') {
     // - BongaCams: checked via Chat Type column values
     // - Chaturbate: checked via Action field prefix "Private Show:"
     // - MyFreeCams: checked via Type column value "Private"
+    const rowUsdDetail = resolveRowUsdDetail(tokens, usd, rowPlatform || 'Unknown')
+    if (rowUsdDetail.source === 'rejected') { parseRejectedCount++; continue }
     const isPaidSession = bcPaidChatType || cbIsPrivateShow || mfcIsPrivate
     const sessionTypeValue = bcPaidChatType || (cbIsPrivateShow ? 'Private Show' : (mfcIsPrivate ? 'Private' : null))
 
     results.push({
       dateRaw, date_time: dateRaw, username,
       platform: rowPlatform || 'Unknown',
-      tokens: tokens > 0 ? tokens : Math.round(usd / tokenRate(rowPlatform)),
-      usd: usd > 0 ? parseFloat(usd.toFixed(2)) : parseFloat((tokens * tokenRate(rowPlatform)).toFixed(2)),
+      tokens: tokens > 0 ? tokens : tokensFromPayout(usd, rowPlatform),
+      usd: rowUsdDetail.usd,
+      ...usdAudit(rowUsdDetail),
       tip_type: sessionTypeValue || ((/membership|fan club/i.test(action + ' ' + tipType) || /^Fan Club Membership(?::|$)/i.test(row.note || row.tip_note || '')) ? 'Membership' : /sale|snapchat|social/i.test(action + ' ' + tipType) ? 'Other Sale' : 'Tip'),
       tip_note: row.note || row.tip_note || '',
       // Paid-chat/spy-mode/private-show rows must be routed to paid_sessions, not tips —
@@ -623,7 +704,7 @@ function parseHeaderless(lines, platform, delimiter = ',') {
       if (!username || tokens <= 0) continue
       if (vals[1].toLowerCase().includes('transfer') || vals[1].toLowerCase().includes('cash')) continue
       if (!dateRaw || isNaN(new Date(dateRaw).getTime())) continue
-      results.push({ dateRaw, date_time: dateRaw, username, platform: 'Chaturbate', tokens, usd: parseFloat((tokens * tokenRate('Chaturbate')).toFixed(2)), tip_type: 'Tip', tip_note: '' })
+      results.push({ dateRaw, date_time: dateRaw, username, platform: 'Chaturbate', tokens, usd: tokensToUsd(tokens, 'Chaturbate'), ...usdAudit(resolveRowUsdDetail(tokens, 0, 'Chaturbate')), tip_type: 'Tip', tip_note: '' })
       continue
     }
 
@@ -634,7 +715,9 @@ function parseHeaderless(lines, platform, delimiter = ',') {
       const usd = parseFloat((vals[4] || '').replace(/[$,]/g, '')) || 0
       if (!username || (tokens <= 0 && usd <= 0)) continue
       if (!dateRaw || isNaN(new Date(dateRaw).getTime())) continue
-      results.push({ dateRaw, date_time: dateRaw, username, platform: platform || 'BongaCams', tokens: tokens > 0 ? tokens : Math.round(usd / tokenRate(platform || 'BongaCams')), usd: usd > 0 ? parseFloat(usd.toFixed(2)) : parseFloat((tokens * tokenRate(platform || 'BongaCams')).toFixed(2)), tip_type: vals[2] || 'Tip', tip_note: '' })
+      const bcDetail = resolveRowUsdDetail(tokens, usd, platform || 'BongaCams')
+      if (bcDetail.source === 'rejected') { parseRejectedCount++; continue }
+      results.push({ dateRaw, date_time: dateRaw, username, platform: platform || 'BongaCams', tokens: tokens > 0 ? tokens : tokensFromPayout(usd, platform || 'BongaCams'), usd: bcDetail.usd, ...usdAudit(bcDetail), tip_type: vals[2] || 'Tip', tip_note: '' })
       continue
     }
 
@@ -655,7 +738,7 @@ function parseHeaderless(lines, platform, delimiter = ',') {
       const isPrivate = typeVal.toLowerCase() === MFC_PRIVATE_TYPE.toLowerCase()
       results.push({
         dateRaw, date_time: dateRaw, username, platform: 'MyFreeCams',
-        tokens, usd: parseFloat((tokens * tokenRate('MyFreeCams')).toFixed(2)),
+        tokens, usd: tokensToUsd(tokens, 'MyFreeCams'), ...usdAudit(resolveRowUsdDetail(tokens, 0, 'MyFreeCams')),
         tip_type: isPrivate ? 'Private' : 'Tip', tip_note: '',
         ...(isPrivate ? { is_paid_session: true, session_type: 'Private' } : {}),
       })
@@ -675,10 +758,11 @@ function parseHeaderless(lines, platform, delimiter = ',') {
         if (raw.includes('$')) { usd = num }
         else if (i === 2 && tokens === 0) { tokens = Math.round(num) }
       }
-      if (tokens === 0 && usd > 0) tokens = Math.round(usd / tokenRate(platform))
-      if (usd === 0 && tokens > 0) usd = parseFloat((tokens * tokenRate(platform)).toFixed(2))
       if (tokens === 0 && usd === 0) continue
-      results.push({ dateRaw, date_time: dateRaw, username, platform: platform || 'Unknown', tokens, usd: parseFloat(usd.toFixed(2)), tip_type: 'Tip', tip_note: '' })
+      const genericDetail = resolveRowUsdDetail(tokens, usd, platform || 'Unknown')
+      if (genericDetail.source === 'rejected') { parseRejectedCount++; continue }
+      if (tokens === 0 && usd > 0) tokens = tokensFromPayout(usd, platform || 'Unknown')
+      results.push({ dateRaw, date_time: dateRaw, username, platform: platform || 'Unknown', tokens, usd: genericDetail.usd, ...usdAudit(genericDetail), tip_type: 'Tip', tip_note: '' })
     }
   }
   return results

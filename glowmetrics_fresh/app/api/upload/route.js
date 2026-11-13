@@ -1,9 +1,9 @@
 import { summarizeOnboarding } from '../../../lib/onboardingSummary'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { parseCSV, detectPlatform, detectDateOrder, computeSnapshotStats } from '../../../lib/analytics'
+import { parseCSVWithStats, detectPlatform, detectDateOrder, computeSnapshotStats, hasKnownTokenRate } from '../../../lib/analytics'
 import { platformLimitMessage } from '../../../lib/planLimits'
-import { canonicalPlatform, PLATFORM_TOKEN_RATES } from '../../../lib/constants'
+import { canonicalPlatform, PLATFORM_TOKEN_RATES, tokensToUsd } from '../../../lib/constants'
 import { importTimeZone, toStoredInstant } from '../../../lib/creatorTimezone'
 
 const KNOWN_PLATFORMS = Object.keys(PLATFORM_TOKEN_RATES)
@@ -139,7 +139,7 @@ async function handleUpload(req) {
   // The parser keeps its content-detected platform when it has one (same
   // parse as before); otherwise it uses the resolved platform so token→USD
   // uses that platform's rate rather than the default.
-  const parsed = parseCSV(raw, contentPlatform !== 'Unknown' ? contentPlatform : textDetectedPlatform, { dateOrder })
+  const { rows: parsed, rejectedRows } = parseCSVWithStats(raw, contentPlatform !== 'Unknown' ? contentPlatform : textDetectedPlatform, { dateOrder })
 
   // Log parse attempt to track platform support and format issues
   const formatAnalysis = analyzeFormat(raw)
@@ -170,7 +170,19 @@ async function handleUpload(req) {
 
   const rows = parsed.map((row) => {
     const tokens = Number(row.tokens) || 0
-    const usd = parseFloat((Number(row.usd) || 0).toFixed(2))
+    // Keep the parser's USD at 4 decimals (never cents per tip). An actual
+    // payout (usd_source 'payout') is never re-priced. Only a tokens-only row
+    // the parser could not price ('unresolved': platform had no known rate) is
+    // priced here, and only if the platform it is stored under has a known rate.
+    // Anything still unresolved is held back below, never stored as $0.
+    const parsedUnknown = !row.platform || row.platform === 'Unknown'
+    const storedPlatform = parsedUnknown ? textDetectedPlatform : row.platform
+    let usd = Math.round((Number(row.usd) || 0) * 1e4) / 1e4
+    let usdUnresolved = row.usd_source === 'unresolved'
+    if (usdUnresolved && tokens > 0 && hasKnownTokenRate(storedPlatform)) {
+      usd = tokensToUsd(tokens, storedPlatform)
+      usdUnresolved = false
+    }
 
     return {
       user_id:   user.id,
@@ -186,12 +198,36 @@ async function handleUpload(req) {
       // paid_sessions below instead of tips.
       is_paid_session: row.is_paid_session === true,
       session_type:    row.session_type || null,
+      _usd_unresolved: usdUnresolved,
     }
   }).filter(r =>
     r.date_time &&
     r.username !== 'Unknown' &&
     (r.tokens > 0 || r.usd > 0)
   )
+
+  // Tokens-only rows on a platform with no known token rate have no real USD.
+  // They are not stored (a stored $0 would read as real earnings); the count is
+  // returned so the creator can re-import with the platform identified.
+  let unresolvedUsdRows = 0
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (rows[i]._usd_unresolved) { rows.splice(i, 1); unresolvedUsdRows++ }
+    else delete rows[i]._usd_unresolved
+  }
+
+  if (!rows.length && rejectedRows > 0 && unresolvedUsdRows === 0) {
+    return NextResponse.json(
+      { error: `${rejectedRows} row(s) could not be read: their payout does not match their tokens, which usually means the columns were read wrongly. Nothing was imported. Check the file's columns and upload again.`, code: 'rows_unreadable', rejectedRows },
+      { status: 400 }
+    )
+  }
+
+  if (!rows.length && unresolvedUsdRows > 0) {
+    return NextResponse.json(
+      { error: `${unresolvedUsdRows} row(s) have tokens but no USD payout, and the platform could not be identified, so their earnings are unknown. Choose the platform and upload again.`, code: 'platform_rate_unknown', unresolvedUsdRows },
+      { status: 400 }
+    )
+  }
 
   if (!rows.length) {
     return NextResponse.json(
@@ -432,6 +468,8 @@ async function handleUpload(req) {
     batchSize: BATCH_SIZE,
     platform:  detectedPlatform, // ← used by dashboard toast
     totalUsd:  summaryTotalUsd,
+    unresolvedUsdRows,
+    rejectedRows,
     dateFrom:  summaryDateFrom ? summaryDateFrom.toISOString() : null,
     dateTo:    summaryDateTo ? summaryDateTo.toISOString() : null,
     paidSessionsInserted: paidInserted,
@@ -454,6 +492,13 @@ async function handleUpload(req) {
     response.paidSessionsWarnings = paidErrors
     response.message = `Some private earnings could not be saved. ${paidInserted} private transactions inserted; retry the import to save remaining rows safely.`
     console.warn('[UPLOAD] Paid-session batches completed with errors:', paidErrors)
+  }
+
+  if (rejectedRows > 0) {
+    response.rejectedRowsWarning = `${rejectedRows} row(s) were not imported because they could not be read: their payout does not match their tokens, which usually means the columns were read wrongly.`
+  }
+  if (unresolvedUsdRows > 0) {
+    response.unresolvedUsdWarning = `${unresolvedUsdRows} row(s) were not imported: they have tokens but no USD payout, and their platform has no known token rate. Upload them again with the platform selected.`
   }
 
   // ── BONGACAMS NO PAID SESSIONS WARNING ──────────────────────────────────

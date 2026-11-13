@@ -208,6 +208,31 @@ test('mixed Live + CSV: Today is default, Overall switch shows overall history',
   expect(screen.queryByTestId('range-1')).toBeNull()
 })
 
+// Regression: a mixed account with nothing in the selected range opened on a
+// page of $0 (Today / 1 Day). It now opens on Overall; an explicit pick wins.
+const oldShow = { ...show, id: 'show-old', startedAt: '2026-09-10T17:00:00Z', endedAt: '2026-09-10T18:00:00Z', finalizedAt: '2026-09-10T18:00:00Z', isNew: false }
+const oldLiveTips = liveTips.map((t, i) => ({ ...t, id: 900 + i, live_session_id: 'show-old', date_time: t.date_time.replace('2026-10-07', '2026-09-10') }))
+
+test('mixed Live + CSV with no activity today: opens on Overall', () => {
+  renderTab({ tips: [...oldLiveTips, ...csvTips], shows: [oldShow] })
+  expect(screen.getByTestId('scope-switch')).toBeTruthy()
+  expect(screen.getByTestId('session-performance')).toBeTruthy()
+  expect(screen.queryByTestId('today-by-platform')).toBeNull()
+  expect(screen.queryByTestId('range-1')).toBeNull()
+})
+
+test('mixed Live + CSV with no activity today: explicit Today pick still shows Today', () => {
+  renderTab({ tips: [...oldLiveTips, ...csvTips], shows: [oldShow] })
+  click('scope-today')
+  expect(screen.getByTestId('range-1')).toBeTruthy()
+})
+
+test('mixed Live + CSV with activity today: still opens on Today', () => {
+  renderTab({ tips: [...liveTips, ...freeChat, ...csvTips], shows: [show] })
+  expect(screen.getByTestId('range-1')).toBeTruthy()
+  expect(screen.queryByTestId('session-performance')).toBeNull()
+})
+
 test('no data: no scope switch or range controls', () => {
   renderTab({})
   expect(screen.queryByTestId('scope-switch')).toBeNull()
