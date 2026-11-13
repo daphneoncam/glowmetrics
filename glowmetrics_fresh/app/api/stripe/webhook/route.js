@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { accessStateFromSubscription, ACCESS_STATES } from '../../../../lib/entitlements'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 
@@ -83,6 +84,17 @@ async function alertUnresolvedUser(eventType, event, { userId, email, customerId
       `This event was dropped — no profile or subscription row was written. The webhook returned 500, so Stripe will retry; if this keeps failing, check manually.`,
     SYNC_ALERT_EMAIL
   )
+}
+
+// Server-owned entitlement fields, derived from the Stripe subscription object.
+function entitlementFields(sub) {
+  const interval = sub?.items?.data?.[0]?.price?.recurring?.interval || null
+  return {
+    access_state: accessStateFromSubscription(sub),
+    access_state_updated_at: new Date().toISOString(),
+    billing_interval: interval === 'month' || interval === 'year' ? interval : null,
+    paid_through: sub?.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null,
+  }
 }
 
 async function updateProfile(supabase, userId, update) {
@@ -252,6 +264,7 @@ export async function POST(request) {
           stripe_subscription_id: sub.id,
           subscription_status: subscriptionStatus,
           trial_ends_at: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
+          ...entitlementFields(sub),
         }
 
         const profileOk = await updateProfile(supabase, user.id, update)
@@ -311,6 +324,10 @@ export async function POST(request) {
           plan: 'free',
           subscription_status: 'canceled',
           trial_ends_at: null,
+          access_state: ACCESS_STATES.CANCELED,
+          access_state_updated_at: new Date().toISOString(),
+          billing_interval: null,
+          paid_through: null,
         }
 
         const profileOk = await updateProfile(supabase, user.id, update)
@@ -369,6 +386,7 @@ export async function POST(request) {
           stripe_subscription_id: sub.id,
           subscription_status: subscriptionStatus,
           trial_ends_at: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
+          ...entitlementFields(sub),
         }
 
         const profileOk = await updateProfile(supabase, user.id, update)
