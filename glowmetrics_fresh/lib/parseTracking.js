@@ -84,10 +84,13 @@ export function analyzeFormat(rawText) {
   // Analyze line shapes (pattern of text vs numbers)
   const shapes = []
   for (const line of lines.slice(0, 20)) {
+    // Content-free: every digit -> 9, every letter in ANY script -> a, all
+    // other characters (punctuation, emoji, symbols) dropped. No username,
+    // amount or text survives, only the line's structure.
     const shape = line
-      .replace(/\d/g, '9')
-      .replace(/[a-zA-Z]/g, 'a')
-      .replace(/[^\w\s]/g, '')
+      .replace(/\p{Nd}/gu, '9')
+      .replace(/\p{L}/gu, 'a')
+      .replace(/[^a9\s]/g, '')
       .substring(0, 50)
     shapes.push(shape)
   }
