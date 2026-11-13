@@ -1106,7 +1106,7 @@ export default function OnboardingPage(){
           if(p&&p.transactionsDetected>0){setPreview(p);setDetectStatus('success');setParseError('')}
           else{
             setPreview(null);setDetectStatus('error')
-            if(parseFailTrackedRef.current!==pasteText){parseFailTrackedRef.current=pasteText;track('onboarding_paste_parse_failed',{platform:platformId,source:'auto_detect',...analyzeFormat(pasteText)})}
+            if(parseFailTrackedRef.current!==pasteText){parseFailTrackedRef.current=pasteText;const fa=analyzeFormat(pasteText);track('onboarding_paste_parse_failed',{platform:platformId,source:'auto_detect',...fa});if(user?.id)logParseAttempt({userId:user.id,source:'onboarding',attemptedPlatform:platformId,claimedPlatform:platformId,rawText:pasteText,formatAnalysis:fa,parseSuccess:false,errorReason:'auto_detect: no earning rows found',errorDetails:{...fa,stage:'auto_detect'}})}
           }
         },220)
       },260)

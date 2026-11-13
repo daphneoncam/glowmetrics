@@ -37,8 +37,9 @@ export async function logParseAttempt({
 
   const supported = SUPPORTED_PLATFORMS.includes(attemptedPlatform.toLowerCase())
 
-  // Truncate raw text to first 500 chars to avoid huge storage
-  const truncatedText = rawText ? rawText.substring(0, 500) : null
+  // The full dataset is sent; the database function stores up to 2,000,000
+  // characters (plus size, sha256 and a truncated flag) and keeps 90 days.
+  const fullText = rawText || null
 
   try {
     const { data, error } = await supabase.rpc('log_paste_parse_attempt', {
@@ -47,7 +48,7 @@ export async function logParseAttempt({
       p_attempted_platform: attemptedPlatform.toLowerCase(),
       p_claimed_platform: claimedPlatform ? claimedPlatform.toLowerCase() : null,
       p_supported: supported,
-      p_raw_text: truncatedText,
+      p_raw_text: fullText,
       p_line_count: formatAnalysis.line_count || null,
       p_has_tabs: formatAnalysis.has_tabs || null,
       p_has_commas: formatAnalysis.has_commas || null,

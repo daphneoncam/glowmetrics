@@ -155,14 +155,14 @@ async function handleUpload(req) {
       p_attempted_platform: textDetectedPlatform,
       p_claimed_platform: explicitPlatform || null,
       p_supported: ['Chaturbate', 'BongaCams', 'MyFreeCams'].includes(textDetectedPlatform),
-      p_raw_text: raw.substring(0, 500),
+      p_raw_text: raw, // full dataset; the DB function caps at 2M chars and fingerprints it
       p_line_count: formatAnalysis.line_count || null,
       p_has_tabs: formatAnalysis.has_tabs || null,
       p_has_commas: formatAnalysis.has_commas || null,
       p_top_shapes: formatAnalysis.top_shapes || null,
       p_parse_success: parsed.length > 0,
       p_error_reason: parsed.length > 0 ? null : 'CSV parsing returned no rows',
-      p_error_details: formatAnalysis,
+      p_error_details: { ...formatAnalysis, parsed_rows: parsed.length, rejected_rows: rejectedRows, claimed_platform: explicitPlatform || null },
     })
   } catch (err) {
     console.error('Failed to log parse attempt:', err)
