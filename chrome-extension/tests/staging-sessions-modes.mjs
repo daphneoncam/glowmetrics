@@ -11,6 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { middayTimezone } from './midday-timezone.mjs';
+import { assertStagingTargets } from './staging-guard.mjs';
 const TEST_TZ = middayTimezone();
 
 const URL_ = process.env.SUPABASE_STAGING_URL;
@@ -21,7 +22,7 @@ const OUT = process.env.BROWSER_ARTIFACTS_DIR || path.resolve('browser-artifacts
 for (const [k, v] of Object.entries({ SUPABASE_STAGING_URL: URL_, SUPABASE_STAGING_SERVICE_ROLE_KEY: SERVICE, SUPABASE_STAGING_ANON_KEY: ANON, CAMCASH_STAGING_BASE_URL: APP })) {
   if (!v) { console.error(`❌ Missing ${k}`); process.exit(1); }
 }
-if (URL_.includes('hlsdlaibnayzbfflxclj') || /camcashgrl\.com/.test(APP)) { console.error('❌ FATAL: refusing to run against production'); process.exit(1); }
+assertStagingTargets({ supabaseUrl: URL_, appBaseUrl: APP });
 fs.mkdirSync(OUT, { recursive: true });
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fixture = JSON.parse(fs.readFileSync(path.join(here, '../../glowmetrics_fresh/lib/sessions/__fixtures__/sessions-modes.json'), 'utf8'));

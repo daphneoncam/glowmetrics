@@ -1,0 +1,8 @@
+# Local environment files must never be committed: secrets belong in the
+# Vercel dashboard / GitHub Actions secrets. A committed root env.local leaked
+# production keys into this public repository's history (commit a6c8e48).
+env.local
+env.*.local
+.env
+.env.local
+.env.*.local

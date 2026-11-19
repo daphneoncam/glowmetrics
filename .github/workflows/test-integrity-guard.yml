@@ -16,6 +16,11 @@ on:
       - '**/*.test.jsx'
       - '**/*.test.tsx'
 
+# Least privilege (CodeQL actions/missing-workflow-permissions): this
+# workflow only needs to read the repository.
+permissions:
+  contents: read
+
 jobs:
   integrity-check:
     runs-on: ubuntu-latest

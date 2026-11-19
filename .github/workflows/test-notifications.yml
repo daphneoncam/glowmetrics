@@ -6,6 +6,12 @@ on:
     types:
       - completed
 
+# Least privilege (CodeQL actions/missing-workflow-permissions). Sends to
+# Slack via a webhook secret; only needs to read code and run artifacts.
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   notify-slack:
     runs-on: ubuntu-latest
@@ -38,6 +44,32 @@ jobs:
           echo "failed=$FAILED" >> $GITHUB_OUTPUT
           echo "duration=$DURATION" >> $GITHUB_OUTPUT
 
+      # Branch names and commit messages are chosen by whoever pushed (forks
+      # included). Escape them for JSON + Slack mrkdwn here, via env vars (never
+      # interpolated into the script), instead of pasting them raw into the
+      # payload below, where a quote or newline broke the JSON and could
+      # inject Slack blocks.
+      - name: Sanitize workflow-run fields for Slack
+        id: safe
+        env:
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_COMMIT_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
+          RUN_COMMIT_URL: ${{ github.event.workflow_run.head_commit.html_url }}
+        run: |
+          slack_escape='gsub("&";"&amp;") | gsub("<";"&lt;") | gsub(">";"&gt;")'
+          json_body='@json | .[1:-1]'
+          branch=$(jq -rn --arg v "$RUN_BRANCH" "\$v | $slack_escape | $json_body")
+          branch_uri=$(jq -rn --arg v "$RUN_BRANCH" '$v | @uri')
+          subject=$(printf '%s' "$RUN_COMMIT_MESSAGE" | head -n 1 | cut -c1-150)
+          message=$(jq -rn --arg v "$subject" "\$v | $slack_escape | gsub(\"[|]\";\"/\") | $json_body")
+          commit_url=$(jq -rn --arg v "$RUN_COMMIT_URL" "\$v | $json_body")
+          {
+            echo "branch=$branch"
+            echo "branch_uri=$branch_uri"
+            echo "message=$message"
+            echo "commit_url=$commit_url"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Notify Slack on Failure
         uses: slackapi/slack-github-action@v1.25.0
         with:
@@ -62,7 +94,7 @@ jobs:
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Branch:*\n${{ github.event.workflow_run.head_branch }}"
+                      "text": "*Branch:*\n${{ steps.safe.outputs.branch }}"
                     },
                     {
                       "type": "mrkdwn",
@@ -78,7 +110,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*Commit:*\n<${{ github.event.workflow_run.head_commit.html_url }}|${{ github.event.workflow_run.head_commit.message }}>"
+                    "text": "*Commit:*\n<${{ steps.safe.outputs.commit_url }}|${{ steps.safe.outputs.message }}>"
                   }
                 },
                 {
@@ -99,7 +131,7 @@ jobs:
                         "type": "plain_text",
                         "text": "View PR"
                       },
-                      "url": "https://github.com/${{ github.repository }}/pulls?q=head:${{ github.event.workflow_run.head_branch }}",
+                      "url": "https://github.com/${{ github.repository }}/pulls?q=head:${{ steps.safe.outputs.branch_uri }}",
                       "style": "primary"
                     }
                   ]
@@ -132,7 +164,7 @@ jobs:
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Branch:*\n${{ github.event.workflow_run.head_branch }}"
+                      "text": "*Branch:*\n${{ steps.safe.outputs.branch }}"
                     }
                   ]
                 },

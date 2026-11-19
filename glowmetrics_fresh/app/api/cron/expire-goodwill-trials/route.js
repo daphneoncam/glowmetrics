@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireCronAuth } from '../../../../lib/cron-auth'
 import { createClient } from '@supabase/supabase-js'
 
 // Cron endpoint — must run fresh on every invocation (real DB state, never
@@ -14,7 +15,10 @@ export const dynamic = 'force-dynamic'
 // 'goodwill_trial' rows: that value is set nowhere else in the codebase, so
 // this can never downgrade a real Stripe-driven subscription (those use
 // 'active'/'trialing'/'canceled'/'none' — see the webhook handler).
-export async function GET() {
+export async function GET(req) {
+  const denied = requireCronAuth(req)
+  if (denied) return denied
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY

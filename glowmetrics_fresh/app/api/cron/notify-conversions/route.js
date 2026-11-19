@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireCronAuth } from '../../../../lib/cron-auth'
 import { createClient } from '@supabase/supabase-js'
 
 // Standard monthly plan price (Stripe price_1UOVqL…). Estimate only — assumes every conversion is monthly.
@@ -63,7 +64,10 @@ async function sendAlert(supabase, emailType, subject, text) {
   }
 }
 
-export async function GET() {
+export async function GET(req) {
+  const denied = requireCronAuth(req)
+  if (denied) return denied
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY

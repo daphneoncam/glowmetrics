@@ -9,6 +9,11 @@ on:
     types:
       - completed
 
+# Least privilege (CodeQL actions/missing-workflow-permissions): read-only by
+# default; the failure job below adds issues: write / actions: read itself.
+permissions:
+  contents: read
+
 jobs:
   notify-on-failure:
     runs-on: ubuntu-latest

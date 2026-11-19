@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { safeRedirectPath } from '@/lib/safe-redirect'
 
 // Only works in Vercel preview environments.
 // Add up to 5 accounts in Vercel → Settings → Environment Variables → Preview only:
@@ -35,7 +36,7 @@ const outer = {
 
 function PreviewLoginInner() {
   const params     = useSearchParams()
-  const redirectTo = params.get('to') || '/dashboard'
+  const redirectTo = safeRedirectPath(params.get('to'))
   const [loading, setLoading] = useState(null)
   const [error,   setError]   = useState(null)
 

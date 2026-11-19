@@ -39,7 +39,7 @@ describe('expire-goodwill-trials cron', () => {
       selectResult: { data: [{ id: 'u1' }, { id: 'u2' }], error: null },
       updateResult: { error: null },
     })
-    const res = await GET()
+    const res = await GET(authorizedReq())
     expect(res.body.success).toBe(true)
     expect(res.body.downgraded).toBe(2)
     expect(res.body.userIds).toEqual(['u1', 'u2'])
@@ -54,7 +54,7 @@ describe('expire-goodwill-trials cron', () => {
       selectResult: { data: [], error: null },
       updateResult: { error: null },
     })
-    await GET()
+    await GET(authorizedReq())
     expect(chain.eq).toHaveBeenCalledWith('subscription_status', 'goodwill_trial')
   })
 
@@ -63,7 +63,7 @@ describe('expire-goodwill-trials cron', () => {
       selectResult: { data: [], error: null },
       updateResult: { error: null },
     })
-    const res = await GET()
+    const res = await GET(authorizedReq())
     expect(res.body.downgraded).toBe(0)
     expect(chain.update).not.toHaveBeenCalled()
   })
@@ -73,8 +73,17 @@ describe('expire-goodwill-trials cron', () => {
       selectResult: { data: null, error: { message: 'db unreachable' } },
       updateResult: { error: null },
     })
-    const res = await GET()
+    const res = await GET(authorizedReq())
     expect(res.body.success).toBe(false)
     expect(res.init.status).toBe(500)
   })
 })
+
+
+// Cron routes now require Vercel's CRON_SECRET bearer token (lib/cron-auth.js).
+// These tests exercise the job logic, so they call it as the scheduler does.
+// Unauthorized access is covered in app/api/cron/__tests__/cron-auth-all-routes.test.js.
+function authorizedReq() {
+  process.env.CRON_SECRET = 'test-cron-secret'
+  return { headers: { get: (name) => (name.toLowerCase() === 'authorization' ? 'Bearer test-cron-secret' : null) } }
+}

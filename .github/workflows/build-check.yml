@@ -7,6 +7,11 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+# Least privilege (CodeQL actions/missing-workflow-permissions): this
+# workflow only needs to read the repository.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest

@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node popup-harness.mjs && node background-harness.mjs && node content-harness.mjs",
+    "test": "node staging-guard.test.mjs && node popup-harness.mjs && node background-harness.mjs && node content-harness.mjs",
     "test:staging": "node staging-smoke-test.mjs"
   },
   "devDependencies": {
