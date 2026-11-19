@@ -6,6 +6,11 @@ on:
     - cron: '0 14 * * *'
   workflow_dispatch:
 
+# Least privilege (CodeQL actions/missing-workflow-permissions): this
+# workflow only needs to read the repository.
+permissions:
+  contents: read
+
 jobs:
   test-suite:
     runs-on: ubuntu-latest

@@ -7,6 +7,11 @@ on:
     - cron: '7 13 * * 1'
   workflow_dispatch: {}
 
+# Least privilege (CodeQL actions/missing-workflow-permissions): this
+# workflow only needs to read the repository.
+permissions:
+  contents: read
+
 jobs:
   check-advisors:
     runs-on: ubuntu-latest

@@ -15,6 +15,7 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { assertStagingTargets } from './staging-guard.mjs';
 
 const URL_ = process.env.SUPABASE_STAGING_URL;
 const ANON = process.env.SUPABASE_STAGING_ANON_KEY;
@@ -24,7 +25,7 @@ const OUT = process.env.BROWSER_ARTIFACTS_DIR || path.resolve('browser-artifacts
 for (const [k, v] of Object.entries({ SUPABASE_STAGING_URL: URL_, SUPABASE_STAGING_ANON_KEY: ANON, SUPABASE_STAGING_SERVICE_ROLE_KEY: SERVICE, CAMCASH_STAGING_BASE_URL: APP })) {
   if (!v) { console.error(`❌ Missing ${k}`); process.exit(1); }
 }
-if (URL_.includes('hlsdlaibnayzbfflxclj') || /camcashgrl\.com/.test(APP)) { console.error('❌ FATAL: refusing to run against production'); process.exit(1); }
+assertStagingTargets({ supabaseUrl: URL_, appBaseUrl: APP });
 fs.mkdirSync(OUT, { recursive: true });
 
 let pass = 0, fail = 0;

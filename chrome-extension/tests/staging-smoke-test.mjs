@@ -13,6 +13,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { assertStagingTargets } from './staging-guard.mjs';
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
@@ -20,9 +21,6 @@ const STAGING_URL = process.env.SUPABASE_STAGING_URL;
 const STAGING_ANON_KEY = process.env.SUPABASE_STAGING_ANON_KEY;
 const STAGING_SERVICE_ROLE_KEY = process.env.SUPABASE_STAGING_SERVICE_ROLE_KEY;
 const API_BASE = process.env.CAMCASH_STAGING_BASE_URL;
-
-// Known production URLs to guard against
-const PRODUCTION_SUPABASE_URL = 'https://hlsdlaibnayzbfflxclj.supabase.co';
 
 // Required env vars with validation
 const missingEnv = [
@@ -38,16 +36,9 @@ if (missingEnv.length > 0) {
   process.exit(1);
 }
 
-// Production safety checks
-if (STAGING_URL === PRODUCTION_SUPABASE_URL) {
-  console.error('❌ FATAL: SUPABASE_STAGING_URL is the production URL. Use staging credentials only.');
-  process.exit(1);
-}
-
-if (API_BASE.includes('camcashgrl.com') && !API_BASE.includes('staging')) {
-  console.error('❌ FATAL: CAMCASH_STAGING_BASE_URL points to production. Use staging URL only.');
-  process.exit(1);
-}
+// Production safety checks: parsed-URL allowlist (see staging-guard.mjs).
+// Exits before any Supabase client is created if either target is not staging.
+assertStagingTargets({ supabaseUrl: STAGING_URL, appBaseUrl: API_BASE });
 
 // ─── Logging & Assertions ──────────────────────────────────────────────────
 

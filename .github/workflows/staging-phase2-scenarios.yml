@@ -8,6 +8,11 @@ on:
         required: false
         default: 'true'
 
+# Least privilege (CodeQL actions/missing-workflow-permissions): this
+# workflow only needs to read the repository.
+permissions:
+  contents: read
+
 jobs:
   staging-17-scenarios:
     name: Run 17-Scenario Test Suite

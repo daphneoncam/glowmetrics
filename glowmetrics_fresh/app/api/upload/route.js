@@ -8,6 +8,7 @@ import { importTimeZone, toStoredInstant } from '../../../lib/creatorTimezone'
 
 const KNOWN_PLATFORMS = Object.keys(PLATFORM_TOKEN_RATES)
 import { analyzeFormat } from '../../../lib/parseTracking'
+import { sendUploadNotification } from '../../../lib/notifications/founder'
 
 const BATCH_SIZE = 250 // Safe batch size — never hit Supabase limits
 
@@ -510,18 +511,15 @@ async function handleUpload(req) {
   }
 
   // ── FOUNDER NOTIFICATION (non-blocking) ───────────────────────────────
+  // Called directly instead of POSTing to `${new URL(req.url).origin}/api/notify/upload`,
+  // so no server-side request is built from the incoming request.
   if (errors.length === 0) {
     try {
-      const origin = new URL(req.url).origin
-      fetch(`${origin}/api/notify/upload`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: user.email,
-          platform: detectedPlatform,
-          tip_count: inserted,
-          user_id: user.id,
-        }),
+      sendUploadNotification({
+        email: user.email,
+        platform: detectedPlatform,
+        tip_count: inserted,
+        user_id: user.id,
       }).catch(err => console.error('[upload] notify failed:', err.message))
     } catch (_) {}
   }

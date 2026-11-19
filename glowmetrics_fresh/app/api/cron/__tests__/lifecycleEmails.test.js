@@ -60,7 +60,7 @@ describe.each(trialRoutes)('%s', (route) => {
 
   test('does not select the non-existent profiles.email; sends to the auth email', async () => {
     profileRows = [{ id: 'u1', plan: 'pro', trial_ends_at: '2026-11-09T12:00:00Z' }]
-    const res = await GET()
+    const res = await GET(authorizedReq())
     expect(res.status).toBe(200)
     expect(profileSelect).not.toMatch(/\bemail\b/)
     expect(sent).toHaveLength(1)
@@ -70,7 +70,7 @@ describe.each(trialRoutes)('%s', (route) => {
 
   test('CamCash branding, real links, and accurate auto-charge wording', async () => {
     profileRows = [{ id: 'u1', plan: 'pro', trial_ends_at: '2026-11-09T12:00:00Z' }]
-    await GET()
+    await GET(authorizedReq())
     const { from, subject, text } = sent[0]
     expect(from).toBe('CamCash <noreply@camcashgrl.com>')
     expect(`${subject} ${text}`).not.toMatch(/glowmetrics/i)
@@ -89,7 +89,7 @@ describe('send-subscription-tips (weekly)', () => {
   beforeEach(() => { profileRows = [{ id: 'u1', plan: 'pro', subscription_status: 'active' }] })
 
   test('first tip is sent when the subscriber has no tip history', async () => {
-    const res = await GET()
+    const res = await GET(authorizedReq())
     expect(profileSelect).not.toMatch(/\bemail\b/)
     expect(sent).toHaveLength(1)
     expect(sent[0].subject).toBe(TIPS[0].subject)
@@ -98,14 +98,14 @@ describe('send-subscription-tips (weekly)', () => {
 
   test('no second tip within 7 days', async () => {
     tipHistory = [{ created_at: new Date(Date.now() - 3 * 86400000).toISOString() }]
-    const res = await GET()
+    const res = await GET(authorizedReq())
     expect(sent).toHaveLength(0)
     expect(res.body.skippedRecent).toBe(1)
   })
 
   test('after 7 days the next tip in rotation is sent', async () => {
     tipHistory = [{ created_at: new Date(Date.now() - 8 * 86400000).toISOString() }]
-    await GET()
+    await GET(authorizedReq())
     expect(sent).toHaveLength(1)
     expect(sent[0].subject).toBe(TIPS[1].subject)
   })
@@ -129,3 +129,12 @@ test('Live Mode guide: marked sent only after Resend accepts, and the batch no l
   expect(body).not.toMatch(/update public\.profiles/i)
   expect(body).toContain("'user_id', r.id")
 })
+
+
+// Cron routes now require Vercel's CRON_SECRET bearer token (lib/cron-auth.js).
+// These tests exercise the job logic, so they call it as the scheduler does.
+// Unauthorized access is covered in app/api/cron/__tests__/cron-auth-all-routes.test.js.
+function authorizedReq() {
+  process.env.CRON_SECRET = 'test-cron-secret'
+  return { headers: { get: (name) => (name.toLowerCase() === 'authorization' ? 'Bearer test-cron-secret' : null) } }
+}

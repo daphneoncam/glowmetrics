@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseRouteClient } from '../../../../lib/supabase-server'
+import { getTrustedOrigin } from '../../../../lib/site-url'
+import { sendSignupNotification } from '../../../../lib/notifications/founder'
 
 export async function GET(req) {
-  const { searchParams, origin } = new URL(req.url)
+  const { searchParams } = new URL(req.url)
+  // Redirects go back to this site only: the request's own origin is kept
+  // when it is a host this deployment serves (so the session cookies set on
+  // it stay valid), otherwise the trusted base URL is used. A forged Host /
+  // X-Forwarded-Host can never become the redirect destination.
+  const origin = getTrustedOrigin(req)
   const code = searchParams.get('code')
 
   if (code) {
@@ -14,14 +21,12 @@ export async function GET(req) {
       const user = data.user
 
       // ── Fire signup notification (non-blocking) ──
-      fetch(`${origin}/api/notify/signup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: user.email,
-          created_at: user.created_at,
-        }),
-      }).catch(err => console.error('[auth/callback] notify/signup failed:', err.message))
+      // Called directly instead of POSTing to `${origin}/api/notify/signup`,
+      // so no server-side request is built from the incoming request.
+      sendSignupNotification({
+        email: user.email,
+        created_at: user.created_at,
+      }).catch(err => console.error('[auth/callback] signup notification failed:', err.message))
 
       return NextResponse.redirect(`${origin}/onboarding`)
     }

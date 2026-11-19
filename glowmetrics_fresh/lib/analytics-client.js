@@ -324,8 +324,23 @@ function stripQuery(url) {
   return url.split(/[?#]/)[0].substring(0, 500);
 }
 
-function generateSessionId() {
-  return 'sess_' + Math.random().toString(36).substr(2, 9);
+// Cryptographically secure (CodeQL js/insecure-randomness). This ID only
+// groups one browser visit's analytics events; it is not a credential and is
+// never used for authorization. Kept the 'sess_' prefix and a short length so
+// existing analytics_events / sitewide rows and queries stay compatible
+// (the server stores it truncated to 100 chars).
+export function generateSessionId() {
+  const c = typeof globalThis !== 'undefined' ? globalThis.crypto : undefined;
+  if (c && typeof c.randomUUID === 'function') {
+    return 'sess_' + c.randomUUID().replace(/-/g, '');
+  }
+  if (c && typeof c.getRandomValues === 'function') {
+    const bytes = c.getRandomValues(new Uint8Array(16));
+    return 'sess_' + Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  // No Web Crypto at all (every browser Next.js supports has it): a
+  // non-random, clearly-labelled ID so analytics still work.
+  return 'sess_nocrypto_' + Date.now().toString(36);
 }
 
 function getDeviceType() {

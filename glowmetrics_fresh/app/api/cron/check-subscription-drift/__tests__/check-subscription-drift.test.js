@@ -42,7 +42,7 @@ describe('check-subscription-drift cron', () => {
     ])
     mockRetrieve.mockResolvedValue({ status: 'past_due' })
 
-    const res = await GET()
+    const res = await GET(authorizedReq())
 
     expect(res.body.success).toBe(true)
     expect(res.body.checked).toBe(1)
@@ -61,7 +61,7 @@ describe('check-subscription-drift cron', () => {
     ])
     mockRetrieve.mockResolvedValue({ status: 'past_due' })
 
-    const res = await GET()
+    const res = await GET(authorizedReq())
 
     expect(res.body.mismatches).toHaveLength(1)
     expect(res.body.mismatches[0].dbPlan).toBe('pro')
@@ -77,7 +77,7 @@ describe('check-subscription-drift cron', () => {
       .mockResolvedValueOnce({ status: 'trialing' })
       .mockResolvedValueOnce({ status: 'canceled' })
 
-    const res = await GET()
+    const res = await GET(authorizedReq())
 
     expect(res.body.checked).toBe(2)
     expect(res.body.mismatches).toHaveLength(0)
@@ -90,14 +90,14 @@ describe('check-subscription-drift cron', () => {
     ])
     mockRetrieve.mockResolvedValue({ status: 'trialing' })
 
-    const res = await GET()
+    const res = await GET(authorizedReq())
     expect(res.body.mismatches).toHaveLength(1)
     expect(res.body.mismatches[0].expectedPlan).toBe('free')
   })
 
   test('no profiles with a Stripe subscription: reports zero checked, never calls Stripe', async () => {
     mockProfilesTable([])
-    const res = await GET()
+    const res = await GET(authorizedReq())
     expect(res.body.checked).toBe(0)
     expect(res.body.mismatches).toEqual([])
     expect(mockRetrieve).not.toHaveBeenCalled()
@@ -112,7 +112,7 @@ describe('check-subscription-drift cron', () => {
       .mockRejectedValueOnce(new Error('No such subscription'))
       .mockResolvedValueOnce({ status: 'active' })
 
-    const res = await GET()
+    const res = await GET(authorizedReq())
 
     expect(res.body.success).toBe(true)
     expect(res.body.checked).toBe(1)
@@ -127,7 +127,7 @@ describe('check-subscription-drift cron', () => {
     }
     mockSupabaseClient.from.mockReturnValue(chain)
 
-    const res = await GET()
+    const res = await GET(authorizedReq())
 
     expect(res.body.success).toBe(false)
     expect(res.init.status).toBe(500)
@@ -139,7 +139,7 @@ describe('check-subscription-drift cron', () => {
     ])
     mockRetrieve.mockResolvedValue({ status: 'unpaid' })
 
-    await GET()
+    await GET(authorizedReq())
 
     expect(global.fetch).toHaveBeenCalledWith(
       'https://api.resend.com/emails',
@@ -147,3 +147,12 @@ describe('check-subscription-drift cron', () => {
     )
   })
 })
+
+
+// Cron routes now require Vercel's CRON_SECRET bearer token (lib/cron-auth.js).
+// These tests exercise the job logic, so they call it as the scheduler does.
+// Unauthorized access is covered in app/api/cron/__tests__/cron-auth-all-routes.test.js.
+function authorizedReq() {
+  process.env.CRON_SECRET = 'test-cron-secret'
+  return { headers: { get: (name) => (name.toLowerCase() === 'authorization' ? 'Bearer test-cron-secret' : null) } }
+}

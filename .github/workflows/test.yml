@@ -17,6 +17,12 @@ on:
         required: false
         default: 'all'
 
+# Least privilege (CodeQL actions/missing-workflow-permissions): read the
+# code, and write PR comments for the "Comment PR with results" step.
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -42,11 +48,12 @@ jobs:
         run: |
           mkdir -p test-results
           npm run test:ci
+        # No Supabase credentials here: the suite mocks Supabase and passes
+        # without them. This step previously received the PRODUCTION
+        # service-role key on every push to claude/* and every same-repo PR,
+        # so any code on such a branch could read it.
         env:
           NODE_ENV: test
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Generate test report
         if: always()

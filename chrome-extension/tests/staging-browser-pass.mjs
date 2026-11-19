@@ -17,6 +17,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { middayTimezone } from './midday-timezone.mjs';
+import { assertStagingTargets } from './staging-guard.mjs';
 const TEST_TZ = middayTimezone();
 
 const STAGING_URL = process.env.SUPABASE_STAGING_URL;
@@ -24,15 +25,11 @@ const STAGING_ANON_KEY = process.env.SUPABASE_STAGING_ANON_KEY;
 const STAGING_SERVICE_ROLE_KEY = process.env.SUPABASE_STAGING_SERVICE_ROLE_KEY;
 const APP = process.env.CAMCASH_STAGING_BASE_URL;
 const OUT = process.env.BROWSER_ARTIFACTS_DIR || path.resolve('browser-artifacts');
-const PRODUCTION_SUPABASE_URL = 'https://hlsdlaibnayzbfflxclj.supabase.co';
 
 for (const [k, v] of Object.entries({ SUPABASE_STAGING_URL: STAGING_URL, SUPABASE_STAGING_ANON_KEY: STAGING_ANON_KEY, SUPABASE_STAGING_SERVICE_ROLE_KEY: STAGING_SERVICE_ROLE_KEY, CAMCASH_STAGING_BASE_URL: APP })) {
   if (!v) { console.error(`❌ Missing ${k}`); process.exit(1); }
 }
-if (STAGING_URL === PRODUCTION_SUPABASE_URL || /camcashgrl\.com/.test(APP)) {
-  console.error('❌ FATAL: refusing to run against production');
-  process.exit(1);
-}
+assertStagingTargets({ supabaseUrl: STAGING_URL, appBaseUrl: APP });
 fs.mkdirSync(OUT, { recursive: true });
 
 let pass = 0, fail = 0;

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireCronAuth } from '../../../../lib/cron-auth'
 import { Resend } from 'resend'
 import { createClient } from '@supabase/supabase-js'
 
@@ -9,7 +10,10 @@ const FOUNDER_EMAIL = 'daphneoncam@gmail.com'
 // which isn't set in the build environment.
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(req) {
+  const denied = requireCronAuth(req)
+  if (denied) return denied
+
   try {
     const resend = new Resend(process.env.RESEND_API_KEY)
     const supabaseAdmin = createClient(
